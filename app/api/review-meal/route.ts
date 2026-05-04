@@ -1,0 +1,128 @@
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { calculateUsd, getBudgetUsd, toUsageSummary } from "@/lib/cost";
+import { getMealModel, getOpenAiClient, hasOpenAiKey } from "@/lib/openai";
+import { getUsageStore } from "@/lib/usageStore";
+import type { MealReview } from "@/types/nutrition";
+
+export const runtime = "nodejs";
+
+const reviewItemSchema = z.object({
+  name: z.string().max(80),
+  amount: z.number(),
+  unit: z.string().max(30),
+  grams: z.number(),
+  calories: z.number(),
+  note: z.string().max(180).optional(),
+});
+
+const reviewRequestSchema = z.object({
+  mealType: z.string().max(80),
+  suggestedMealTitle: z.string().max(120).optional(),
+  items: z.array(reviewItemSchema).min(1).max(30),
+  childProfile: z.object({
+    ageMonths: z.number(),
+    weightKg: z.number(),
+    fingerFoodPreferred: z.boolean(),
+    avoidFoods: z.array(z.string()),
+    goals: z.array(z.string()),
+    acceptedSafeFoods: z.array(z.string()),
+    fruitOptions: z.array(z.string()),
+  }),
+});
+
+const aiReviewSchema = z.object({
+  verdict: z.string(),
+  strengths: z.array(z.string()).min(1),
+  suggestions: z.array(z.string()).min(1),
+  safetyNotes: z.array(z.string()).min(1),
+  feedingNote: z.string(),
+});
+
+function fallbackReview(input: z.infer<typeof reviewRequestSchema>): MealReview {
+  const totalCalories = input.items.reduce((sum, item) => sum + item.calories, 0);
+  const hasProtein = input.items.some((item) => /egg|cheese|yoghurt|chicken|fish|beef|pork|tofu|beans|lentils/i.test(item.name));
+  const hasFruit = input.items.some((item) => /banana|mandarin|grape|kiwi|plum|prune|pear/i.test(item.name));
+  const hasFat = input.items.some((item) => /oil|butter|avocado|cheese|yoghurt/i.test(item.name));
+
+  return {
+    verdict: hasProtein ? "Looks like a reasonable toddler plate" : "Add a small protein exposure if available",
+    totalCalories,
+    strengths: [
+      `${totalCalories} kcal estimated for this edited plate.`,
+      hasFat ? "Includes an energy-dense food, useful when appetite is small." : "The portions are visible and adjustable.",
+    ],
+    suggestions: [
+      hasProtein ? "Keep protein calm and separate if she rejects it mixed in." : "Try egg, yoghurt, tofu, beans, cheese, fish, or finely chopped meat in a small portion.",
+      hasFruit ? "Keep fruit as the planned portion, not a rescue after refusal." : "Fruit is optional; do not add it only to rescue a refused meal.",
+    ],
+    safetyNotes: [
+      "Serve soft, cool enough, and cut into toddler-safe pieces.",
+      "Quarter grapes lengthwise and avoid whole nuts or thick spoonfuls of nut butter.",
+    ],
+    feedingNote: "If she finishes and asks for more, offer more normal meal food on her own plate. If she refuses, keep the top-up small and planned.",
+    source: "fallback",
+    usage: toUsageSummary(0),
+  };
+}
+
+export async function POST(request: NextRequest) {
+  const input = reviewRequestSchema.parse(await request.json());
+  const store = getUsageStore();
+  const usage = await store.get();
+  const budgetUsd = getBudgetUsd();
+  const currentSummary = toUsageSummary(usage.estimatedUsd);
+
+  if (!hasOpenAiKey() || usage.estimatedUsd >= budgetUsd) {
+    return NextResponse.json({ ...fallbackReview(input), usage: currentSummary });
+  }
+
+  const prompt = {
+    task: "Review toddler meal quantities. No diagnosis. No guaranteed weight gain.",
+    rules: [
+      "Child is 19.5 months, around 8.8-9 kg, low weight, likes finger foods and rice.",
+      "Avoid noodles and congee by default.",
+      "Fruit and milk should not be rescue foods.",
+      "Mention GP/paediatrician/dietitian review if poor weight gain continues.",
+      "Keep response practical and brief.",
+    ],
+    mealType: input.mealType,
+    selectedMeal: input.suggestedMealTitle,
+    items: input.items.map((item) => ({
+      name: item.name,
+      qty: `${item.amount} ${item.unit}`,
+      grams: Math.round(item.grams),
+      kcal: item.calories,
+    })),
+    profile: input.childProfile,
+    output: "JSON only: verdict, strengths[], suggestions[], safetyNotes[], feedingNote",
+  };
+
+  const completion = await getOpenAiClient().chat.completions.create({
+    model: getMealModel(),
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are a cautious toddler feeding planner. Return valid JSON only. Do not diagnose. Do not promise weight gain.",
+      },
+      { role: "user", content: JSON.stringify(prompt) },
+    ],
+    response_format: { type: "json_object" },
+    max_completion_tokens: 500,
+  });
+
+  const content = completion.choices[0]?.message?.content || "{}";
+  const parsed = aiReviewSchema.parse(JSON.parse(content));
+  const inputTokens = completion.usage?.prompt_tokens ?? 900;
+  const outputTokens = completion.usage?.completion_tokens ?? 350;
+  const estimatedUsd = calculateUsd({ inputTokens, outputTokens });
+  const updated = await store.add(inputTokens, outputTokens, estimatedUsd);
+
+  return NextResponse.json({
+    ...parsed,
+    totalCalories: input.items.reduce((sum, item) => sum + item.calories, 0),
+    source: "openai",
+    usage: toUsageSummary(updated.estimatedUsd),
+  } satisfies MealReview);
+}
