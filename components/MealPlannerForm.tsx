@@ -14,6 +14,7 @@ import {
   createMealBuilderItem,
   getAllowedIngredientDefinitions,
   isIngredientAllowedForMeal,
+  mealSchedules,
   mealTargets,
   mealTypes,
   normalizeIngredient,
@@ -66,6 +67,7 @@ export function MealPlannerForm() {
 
   const suggestedMeals = suggestMeals(mealItems, mealType);
   const summary = useMemo(() => summarizeMeal(mealItems, mealType), [mealItems, mealType]);
+  const selectedSchedule = mealSchedules[mealType];
   const canReview = mealItems.length > 0;
 
   function updateMode(nextMode: PlanningMode) {
@@ -252,6 +254,16 @@ export function MealPlannerForm() {
             </select>
           </label>
 
+          {selectedSchedule ? (
+            <div className="rounded-[8px] border border-[#f0cddd] bg-[#fff8fb]/90 p-3 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#9c456c]">Suggested time</p>
+                <p className="rounded-full bg-[#fff0d7] px-3 py-1 text-xs font-black text-[#7a4a20]">{selectedSchedule.timeFrame}</p>
+              </div>
+              <p className="mt-2 text-sm font-semibold leading-5 text-[#765066]">{selectedSchedule.note}</p>
+            </div>
+          ) : null}
+
           <div className="space-y-2">
             <p className="text-sm font-black text-[#633d55]">Available foods</p>
             <IngredientChips mealType={mealType} selected={selectedIngredients} onChange={updateSelectedIngredients} />
@@ -357,12 +369,14 @@ export function MealPlannerForm() {
           <div className="grid gap-2">
             {mealTypes.map((type) => {
               const target = mealTargets[type];
+              const schedule = mealSchedules[type];
               return (
                 <div key={type} className="rounded-[8px] bg-white/72 p-3">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-black text-[#633d55]">{type}</p>
                     <p className="rounded-full bg-[#fff0d7] px-3 py-1 text-xs font-black text-[#8a5422]">{target.calories} kcal</p>
                   </div>
+                  {schedule ? <p className="mt-1 text-xs font-black leading-5 text-[#9c456c]">{schedule.timeFrame}</p> : null}
                   <p className="mt-1 text-xs font-semibold leading-5 text-[#8a6679]">
                     Protein {target.protein}g · Carb {target.carbs}g · Fat {target.fat}g
                   </p>

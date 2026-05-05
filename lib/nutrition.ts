@@ -61,6 +61,20 @@ export const mealTargets: Record<string, { calories: number; protein: number; ca
   "Whole day plan": { calories: 1000, protein: 20, carbs: 130, fat: 35, note: "Approximate daily planning target for this app." },
 };
 
+export const mealSchedules: Record<string, { timeFrame: string; note: string }> = {
+  Breakfast: { timeFrame: "7:15-8:00 am", note: "After the 7:00 am wake-up, keep this as the calm first food of the day." },
+  "Dessert after breakfast": { timeFrame: "8:15-8:45 am", note: "Only a small planned portion after breakfast, not a rescue if breakfast was refused." },
+  "Snack after breakfast / morning tea": { timeFrame: "9:45-10:20 am", note: "A light bridge before early lunch so appetite is still ready before nap." },
+  Lunch: { timeFrame: "10:45-11:20 am", note: "Offer lunch before the usual 11:30 am-1:30 pm nap window." },
+  "Dessert after lunch": { timeFrame: "1:35-2:00 pm", note: "Best after waking from the lunch nap if a small planned dessert is needed." },
+  "Afternoon tea": { timeFrame: "3:00-3:45 pm", note: "A measured snack between nap and dinner." },
+  Dinner: { timeFrame: "5:30-6:15 pm", note: "Main evening meal with enough space before the 8:45 pm sleep time." },
+  "After dinner snack": { timeFrame: "7:00-7:30 pm", note: "Optional and small, only if planned and appetite suggests it." },
+  "Small portion eating with family": { timeFrame: "6:15-6:45 pm", note: "Use as a small family-food top-up plate, not an unlimited second dinner." },
+  "Bedtime milk/yoghurt": { timeFrame: "7:45-8:15 pm", note: "Keep it scheduled before the 8:45 pm bedtime, not used after refusals." },
+  "Whole day plan": { timeFrame: "7:15 am-8:15 pm", note: "Built around lunch nap 11:30 am-1:30 pm and night sleep 8:45 pm-7:00 am." },
+};
+
 export const categoryLabels: Record<NutritionCategory, string> = {
   carb: "Carb",
   protein: "Protein / iron",
