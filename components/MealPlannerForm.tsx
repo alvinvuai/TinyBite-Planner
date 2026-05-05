@@ -12,7 +12,8 @@ import { SuggestedMeals } from "@/components/SuggestedMeals";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import {
   createMealBuilderItem,
-  ingredientDefinitions,
+  getAllowedIngredientDefinitions,
+  isIngredientAllowedForMeal,
   mealTargets,
   mealTypes,
   normalizeIngredient,
@@ -75,7 +76,9 @@ export function MealPlannerForm() {
 
   function changeMealType(nextMealType: string) {
     setMealType(nextMealType);
-    setMealItems((current) => rebalanceSuggestedItems(current, nextMealType, true));
+    const allowedKeys = new Set(getAllowedIngredientDefinitions(nextMealType).map((ingredient) => ingredient.key));
+    setSelectedIngredients((current) => current.filter((selected) => isIngredientAllowedForMeal(selected, nextMealType)));
+    setMealItems((current) => rebalanceSuggestedItems(current.filter((item) => allowedKeys.has(item.ingredientKey)), nextMealType, true));
     setReview(null);
     setSelectedMealId(null);
   }
@@ -85,28 +88,30 @@ export function MealPlannerForm() {
     setTextOpen(true);
   }
 
-  function updateSelectedIngredients(nextSelected: string[]) {
-    setSelectedIngredients(nextSelected);
+  function updateSelectedIngredients(nextSelected: string[], targetMealType = mealType) {
+    const allowedSelected = nextSelected.filter((selected) => isIngredientAllowedForMeal(selected, targetMealType));
+    setSelectedIngredients(allowedSelected);
     setReview(null);
     setSelectedMealId(null);
     setMealItems((current) => {
-      const kept = current.filter((item) => nextSelected.some((selected) => createMealBuilderItem(selected)?.ingredientKey === item.ingredientKey));
+      const kept = current.filter((item) => allowedSelected.some((selected) => createMealBuilderItem(selected)?.ingredientKey === item.ingredientKey));
       const existingKeys = new Set(kept.map((item) => item.ingredientKey));
-      const added = nextSelected
+      const added = allowedSelected
         .map((selected) => createMealBuilderItem(selected))
         .filter((item): item is MealBuilderItem => item !== null && !existingKeys.has(item.ingredientKey));
-      return rebalanceSuggestedItems([...kept, ...added], mealType, true);
+      return rebalanceSuggestedItems([...kept, ...added], targetMealType, true);
     });
   }
 
   function applyFreeText() {
     const normalized = normalizeIngredient(freeText);
-    const textIngredients = ingredientDefinitions
+    const inferredMeal = mealTypes.find((type) => normalized.includes(normalizeIngredient(type)));
+    const targetMealType = inferredMeal ?? mealType;
+    const textIngredients = getAllowedIngredientDefinitions(targetMealType)
       .filter((definition) => definition.aliases.some((alias) => normalized.includes(normalizeIngredient(alias))))
       .map((definition) => definition.name);
-    const inferredMeal = mealTypes.find((type) => normalized.includes(normalizeIngredient(type)));
     if (inferredMeal) changeMealType(inferredMeal);
-    if (textIngredients.length) updateSelectedIngredients(Array.from(new Set([...selectedIngredients, ...textIngredients])));
+    if (textIngredients.length) updateSelectedIngredients(Array.from(new Set([...selectedIngredients, ...textIngredients])), targetMealType);
     setTextOpen(false);
   }
 
@@ -243,7 +248,7 @@ export function MealPlannerForm() {
 
           <div className="space-y-2">
             <p className="text-sm font-black text-[#633d55]">Available foods</p>
-            <IngredientChips selected={selectedIngredients} onChange={updateSelectedIngredients} />
+            <IngredientChips mealType={mealType} selected={selectedIngredients} onChange={updateSelectedIngredients} />
           </div>
         </div>
 

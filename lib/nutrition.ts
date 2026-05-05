@@ -386,6 +386,28 @@ export const ingredientDefinitions: IngredientDefinition[] = [
 
 const categories: NutritionCategory[] = ["carb", "protein", "dairy", "fruit", "vegetable", "fat", "treat"];
 
+const mainMealTypes = new Set(["Breakfast", "Lunch", "Dinner", "Small portion eating with family", "Whole day plan"]);
+
+const lightSnackIngredientKeys = new Set([
+  "cheese",
+  "yoghurt",
+  "fresh_cow_milk",
+  "pediasure_milk",
+  "banana",
+  "mandarin",
+  "grape",
+  "kiwi",
+  "plum",
+  "prune",
+  "pear",
+  "avocado",
+  "bread",
+  "biscuit",
+]);
+
+const dessertIngredientKeys = new Set(["cheese", "yoghurt", "banana", "mandarin", "grape", "kiwi", "plum", "prune", "pear"]);
+const bedtimeIngredientKeys = new Set(["yoghurt", "fresh_cow_milk", "pediasure_milk"]);
+
 const mealCategoryWeights: Record<string, Partial<Record<NutritionCategory, number>>> = {
   Breakfast: { carb: 0.34, protein: 0.25, dairy: 0.18, fruit: 0.1, fat: 0.13 },
   "Dessert after breakfast": { fruit: 0.5, dairy: 0.35, treat: 0.15 },
@@ -408,6 +430,23 @@ export function getIngredientDefinition(name: string) {
       normalizeIngredient(item.key) === normalized ||
       item.aliases.some((alias) => normalizeIngredient(alias) === normalized),
   );
+}
+
+export function getAllowedIngredientDefinitions(mealType: string) {
+  if (mainMealTypes.has(mealType)) return ingredientDefinitions;
+  if (mealType === "Bedtime milk/yoghurt") {
+    return ingredientDefinitions.filter((ingredient) => bedtimeIngredientKeys.has(ingredient.key));
+  }
+  if (mealType.includes("Dessert")) {
+    return ingredientDefinitions.filter((ingredient) => dessertIngredientKeys.has(ingredient.key));
+  }
+  return ingredientDefinitions.filter((ingredient) => lightSnackIngredientKeys.has(ingredient.key));
+}
+
+export function isIngredientAllowedForMeal(ingredientKeyOrName: string, mealType: string) {
+  const definition = getIngredientDefinition(ingredientKeyOrName);
+  if (!definition) return false;
+  return getAllowedIngredientDefinitions(mealType).some((ingredient) => ingredient.key === definition.key);
 }
 
 export function normalizeIngredient(value: string) {

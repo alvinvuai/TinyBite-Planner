@@ -1,16 +1,19 @@
 "use client";
 
-import { categoryLabels, categoryStyles, ingredientDefinitions } from "@/lib/nutrition";
+import { categoryLabels, categoryStyles, getAllowedIngredientDefinitions } from "@/lib/nutrition";
 import type { NutritionCategory } from "@/types/nutrition";
 
 const groupOrder: NutritionCategory[] = ["carb", "protein", "dairy", "fat", "fruit", "vegetable", "treat"];
 
 type IngredientChipsProps = {
+  mealType: string;
   selected: string[];
   onChange: (selected: string[]) => void;
 };
 
-export function IngredientChips({ selected, onChange }: IngredientChipsProps) {
+export function IngredientChips({ mealType, selected, onChange }: IngredientChipsProps) {
+  const ingredients = getAllowedIngredientDefinitions(mealType);
+
   function toggle(ingredient: string) {
     onChange(selected.includes(ingredient) ? selected.filter((item) => item !== ingredient) : [...selected, ingredient]);
   }
@@ -18,7 +21,7 @@ export function IngredientChips({ selected, onChange }: IngredientChipsProps) {
   return (
     <div className="space-y-4">
       {groupOrder.map((category) => {
-        const group = ingredientDefinitions.filter((ingredient) => ingredient.category === category);
+        const group = ingredients.filter((ingredient) => ingredient.category === category);
         if (!group.length) return null;
         const style = categoryStyles[category];
         return (
