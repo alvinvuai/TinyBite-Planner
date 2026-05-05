@@ -186,12 +186,12 @@ function UnitMenu({
   const active = units.find((unit) => unit.unit === selected) || units[0];
 
   return (
-    <div className="relative mt-1">
+    <div className="relative mt-1 inline-block max-w-full">
       <select
         aria-label={label}
         value={active.unit}
         onChange={(event) => onSelect(event.currentTarget.value)}
-        className="min-h-8 w-full min-w-0 appearance-none rounded-full border-0 bg-[#ffd7e8] px-2 py-1 pr-5 text-[11px] font-black text-[#9c456c] shadow-sm outline-none"
+        className="h-7 max-w-full appearance-none rounded-[8px] border border-[#efb8cf] bg-[#ffd7e8] px-2 py-0.5 pr-5 text-[10px] font-black leading-none text-[#7d3157] shadow-sm outline-none sm:h-8 sm:rounded-full sm:text-[11px]"
       >
         {units.map((unit) => (
           <option key={unit.unit} value={unit.unit}>
@@ -199,7 +199,7 @@ function UnitMenu({
           </option>
         ))}
       </select>
-      <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-black text-[#9c456c]">v</span>
+      <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-black text-[#7d3157]">v</span>
     </div>
   );
 }

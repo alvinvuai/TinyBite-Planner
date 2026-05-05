@@ -23,7 +23,6 @@ const gramUnit = (min = 1): UnitOption => ({ unit: "g", label: "g", grams: 1, st
 const mlUnit = (density = 1, min = 5): UnitOption => ({ unit: "ml", label: "ml", grams: density, step: 5, min });
 const tbsp = (grams: number): UnitOption => ({ unit: "tbsp", label: "tbsp", grams, step: 0.25, min: 0.25 });
 const tsp = (grams: number): UnitOption => ({ unit: "tsp", label: "tsp", grams, step: 0.25, min: 0.25 });
-const cup = (grams: number): UnitOption => ({ unit: "cup", label: "cup", grams, step: 0.125, min: 0.125 });
 const piece = (label: string, grams: number, step = 0.5): UnitOption => ({
   unit: label.toLowerCase().replaceAll(" ", "_"),
   label,
@@ -89,11 +88,11 @@ export const ingredientDefinitions: IngredientDefinition[] = [
     aliases: ["rice", "white rice", "cooked rice"],
     category: "carb",
     caloriesPer100g: 130,
-    defaultAmount: 0.5,
-    defaultUnit: "cup",
-    units: [gramUnit(5), cup(158), piece("rice spoon", 20, 0.5)],
+    defaultAmount: 8,
+    defaultUnit: "tbsp",
+    units: [gramUnit(5), tbsp(9.9), piece("rice spoon", 20, 0.5)],
     nutrientsPer100g: n({ protein: 2.7, carbs: 28.2, fat: 0.3, fiber: 0.4, iron: 1.2, zinc: 0.5 }),
-    note: "Cooked white rice estimate; cup weight varies with grain and packing.",
+    note: "Cooked white rice estimate; tablespoon weight varies with grain and packing.",
   },
   {
     key: "egg",
@@ -127,7 +126,7 @@ export const ingredientDefinitions: IngredientDefinition[] = [
     caloriesPer100g: 61,
     defaultAmount: 100,
     defaultUnit: "g",
-    units: [gramUnit(5), piece("small tub", 100, 0.5), cup(245)],
+    units: [gramUnit(5), tbsp(15), piece("small tub", 100, 0.5)],
     nutrientsPer100g: n({ protein: 3.5, carbs: 4.7, fat: 3.3, calcium: 121, zinc: 0.6 }),
     note: "Plain whole-milk yoghurt estimate.",
   },
@@ -307,7 +306,7 @@ export const ingredientDefinitions: IngredientDefinition[] = [
     caloriesPer100g: 116,
     defaultAmount: 30,
     defaultUnit: "g",
-    units: [gramUnit(5), piece("soft spoon", 12, 1), cup(198)],
+    units: [gramUnit(5), tbsp(12), piece("soft spoon", 12, 1)],
     nutrientsPer100g: n({ protein: 9, carbs: 20, fat: 0.4, fiber: 8, iron: 3.3, zinc: 1.3, calcium: 19 }),
     note: "Cook until very soft; lightly mash if needed.",
   },
