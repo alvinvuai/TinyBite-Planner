@@ -19,6 +19,24 @@ const reviewItemSchema = z.object({
 const reviewRequestSchema = z.object({
   mealType: z.string().max(80),
   suggestedMealTitle: z.string().max(120).optional(),
+  nutritionSummary: z
+    .object({
+      totalCalories: z.number(),
+      targetCalories: z.number(),
+      macros: z.object({
+        protein: z.number(),
+        carbs: z.number(),
+        fat: z.number(),
+      }),
+      nutrients: z.object({
+        fiber: z.number(),
+        iron: z.number(),
+        zinc: z.number(),
+        calcium: z.number(),
+        omega3: z.number(),
+      }),
+    })
+    .optional(),
   items: z.array(reviewItemSchema).min(1).max(30),
   childProfile: z.object({
     ageMonths: z.number(),
@@ -33,6 +51,8 @@ const reviewRequestSchema = z.object({
 
 const aiReviewSchema = z.object({
   verdict: z.string(),
+  score: z.number().min(0).max(100).optional(),
+  macroComment: z.string().optional(),
   strengths: z.array(z.string()).min(1),
   suggestions: z.array(z.string()).min(1),
   safetyNotes: z.array(z.string()).min(1),
@@ -41,15 +61,22 @@ const aiReviewSchema = z.object({
 
 function fallbackReview(input: z.infer<typeof reviewRequestSchema>): MealReview {
   const totalCalories = input.items.reduce((sum, item) => sum + item.calories, 0);
+  const targetCalories = input.nutritionSummary?.targetCalories ?? totalCalories;
+  const calorieMatch = Math.max(0, 100 - Math.min(60, Math.abs(totalCalories - targetCalories)));
   const hasProtein = input.items.some((item) => /egg|cheese|yoghurt|chicken|fish|beef|pork|tofu|beans|lentils/i.test(item.name));
   const hasFruit = input.items.some((item) => /banana|mandarin|grape|kiwi|plum|prune|pear/i.test(item.name));
   const hasFat = input.items.some((item) => /oil|butter|avocado|cheese|yoghurt/i.test(item.name));
 
   return {
     verdict: hasProtein ? "Looks like a reasonable toddler plate" : "Add a small protein exposure if available",
+    score: Math.round((calorieMatch + (hasProtein ? 20 : 0) + (hasFat ? 10 : 0)) / 1.3),
+    targetCalories,
     totalCalories,
+    macroComment: input.nutritionSummary
+      ? `Protein ${input.nutritionSummary.macros.protein.toFixed(1)}g, carb ${input.nutritionSummary.macros.carbs.toFixed(1)}g, fat ${input.nutritionSummary.macros.fat.toFixed(1)}g.`
+      : undefined,
     strengths: [
-      `${totalCalories} kcal estimated for this edited plate.`,
+      `${totalCalories} kcal offered vs ${targetCalories} kcal target.`,
       hasFat ? "Includes an energy-dense food, useful when appetite is small." : "The portions are visible and adjustable.",
     ],
     suggestions: [
@@ -88,6 +115,7 @@ export async function POST(request: NextRequest) {
     ],
     mealType: input.mealType,
     selectedMeal: input.suggestedMealTitle,
+    nutrition: input.nutritionSummary,
     items: input.items.map((item) => ({
       name: item.name,
       qty: `${item.amount} ${item.unit}`,
@@ -95,7 +123,7 @@ export async function POST(request: NextRequest) {
       kcal: item.calories,
     })),
     profile: input.childProfile,
-    output: "JSON only: verdict, strengths[], suggestions[], safetyNotes[], feedingNote",
+    output: "JSON only: verdict, score, macroComment, strengths[], suggestions[], safetyNotes[], feedingNote. Prefer numbers over long prose.",
   };
 
   const completion = await getOpenAiClient().chat.completions.create({
@@ -104,7 +132,7 @@ export async function POST(request: NextRequest) {
       {
         role: "system",
         content:
-          "You are a cautious toddler feeding planner. Return valid JSON only. Do not diagnose. Do not promise weight gain.",
+          "You are a cautious toddler feeding planner. Return valid JSON only. Be brief and numeric. Do not diagnose. Do not promise weight gain.",
       },
       { role: "user", content: JSON.stringify(prompt) },
     ],
@@ -121,6 +149,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     ...parsed,
+    targetCalories: input.nutritionSummary?.targetCalories,
     totalCalories: input.items.reduce((sum, item) => sum + item.calories, 0),
     source: "openai",
     usage: toUsageSummary(updated.estimatedUsd),

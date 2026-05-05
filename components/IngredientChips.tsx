@@ -1,30 +1,9 @@
 "use client";
 
-const ingredients = [
-  "Rice",
-  "Egg",
-  "Cheese",
-  "Yoghurt",
-  "Banana",
-  "Mandarin",
-  "Grape",
-  "Kiwi",
-  "Plum",
-  "Dried plum / prune",
-  "Pear",
-  "Chicken",
-  "Fish",
-  "Beef",
-  "Pork",
-  "Tofu",
-  "Beans / lentils",
-  "Avocado",
-  "Bread",
-  "Biscuit",
-  "Vegetables",
-  "Butter",
-  "Olive oil",
-];
+import { categoryLabels, categoryStyles, ingredientDefinitions } from "@/lib/nutrition";
+import type { NutritionCategory } from "@/types/nutrition";
+
+const groupOrder: NutritionCategory[] = ["carb", "protein", "dairy", "fat", "fruit", "vegetable", "treat"];
 
 type IngredientChipsProps = {
   selected: string[];
@@ -37,23 +16,45 @@ export function IngredientChips({ selected, onChange }: IngredientChipsProps) {
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
-      {ingredients.map((ingredient) => {
-        const active = selected.includes(ingredient);
+    <div className="space-y-4">
+      {groupOrder.map((category) => {
+        const group = ingredientDefinitions.filter((ingredient) => ingredient.category === category);
+        if (!group.length) return null;
+        const style = categoryStyles[category];
         return (
-          <button
-            key={ingredient}
-            type="button"
-            onClick={() => toggle(ingredient)}
-            className={`pressable min-h-10 rounded-full border px-3.5 py-2 text-sm font-semibold ${
-              active
-                ? "translate-y-[-3px] border-[#ff72ad] bg-[linear-gradient(145deg,#ffe0ec,#fff7fb)] text-[#8c3d61] shadow-[0_14px_24px_rgba(255,114,173,0.30),inset_0_1px_0_rgba(255,255,255,0.96)] ring-2 ring-[#ffc2dc]"
-                : "border-white/80 bg-white/58 text-[#765066] shadow-[0_5px_12px_rgba(184,105,139,0.08)] hover:-translate-y-0.5 hover:bg-white/82 hover:shadow-[0_10px_18px_rgba(184,105,139,0.14)]"
-            }`}
-            aria-pressed={active}
-          >
-            {ingredient}
-          </button>
+          <section key={category} className="rounded-[8px] border bg-white/76 p-3 shadow-sm" style={{ borderColor: style.border }}>
+            <div className="mb-2 flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: style.dot }} />
+              <p className="text-xs font-black uppercase tracking-[0.08em]" style={{ color: style.text }}>
+                {categoryLabels[category]}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {group.map((ingredient) => {
+                const active = selected.includes(ingredient.name);
+                return (
+                  <button
+                    key={ingredient.key}
+                    type="button"
+                    onClick={() => toggle(ingredient.name)}
+                    className="pressable min-h-10 rounded-full border px-3.5 py-2 text-sm font-black shadow-sm transition-transform"
+                    style={{
+                      background: active ? style.bg : "#fffafd",
+                      borderColor: active ? style.dot : "#ead8e2",
+                      color: active ? style.text : "#5e3752",
+                      boxShadow: active
+                        ? `0 14px 24px color-mix(in srgb, ${style.dot} 24%, transparent), inset 0 1px 0 rgba(255,255,255,0.95)`
+                        : "0 5px 12px rgba(126,70,101,0.08)",
+                      transform: active ? "translateY(-3px)" : undefined,
+                    }}
+                    aria-pressed={active}
+                  >
+                    {ingredient.name}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
         );
       })}
     </div>

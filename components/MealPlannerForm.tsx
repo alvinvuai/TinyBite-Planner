@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { BabyMascot } from "@/components/BabyMascot";
 import { CuteButton } from "@/components/CuteButton";
 import { IngredientChips } from "@/components/IngredientChips";
@@ -8,23 +8,19 @@ import { MealQuantityGrid } from "@/components/MealQuantityGrid";
 import { MealReviewPanel } from "@/components/MealReviewPanel";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { SuggestedMeals } from "@/components/SuggestedMeals";
-import { UsageBadge } from "@/components/UsageBadge";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
-import { createMealBuilderItem, suggestMeals } from "@/lib/nutrition";
-import type { ChildProfile, MealResponse, PlanningMode } from "@/types/meal";
+import {
+  createMealBuilderItem,
+  ingredientDefinitions,
+  mealTargets,
+  mealTypes,
+  normalizeIngredient,
+  rebalanceSuggestedItems,
+  suggestMeals,
+  summarizeMeal,
+} from "@/lib/nutrition";
+import type { ChildProfile, PlanningMode } from "@/types/meal";
 import type { MealBuilderItem, MealReview } from "@/types/nutrition";
-
-const mealTypes = [
-  "Breakfast",
-  "Snack after breakfast / morning tea",
-  "Lunch",
-  "Afternoon tea",
-  "Dinner",
-  "After dinner snack",
-  "Small portion eating with family",
-  "Bedtime milk/yoghurt",
-  "Whole day plan",
-];
 
 const defaultProfile: ChildProfile = {
   ageMonths: 19.5,
@@ -43,25 +39,22 @@ export function MealPlannerForm() {
   const [freeText, setFreeText] = useState("");
   const [profile, setProfile] = useState<ChildProfile>(defaultProfile);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [response, setResponse] = useState<MealResponse | null>(null);
+  const [textOpen, setTextOpen] = useState(false);
+  const [tipsOpen, setTipsOpen] = useState(false);
+  const [targetsOpen, setTargetsOpen] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [completionPercent, setCompletionPercent] = useState(80);
   const [mealItems, setMealItems] = useState<MealBuilderItem[]>([]);
   const [selectedMealId, setSelectedMealId] = useState<string | null>(null);
   const [review, setReview] = useState<MealReview | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [savedMessage, setSavedMessage] = useState("");
 
   useEffect(() => {
     queueMicrotask(() => {
       const savedProfile = localStorage.getItem("tinybite-profile");
-      const savedUsage = localStorage.getItem("tinybite-usage");
       if (savedProfile) setProfile({ ...defaultProfile, ...(JSON.parse(savedProfile) as Partial<ChildProfile>) });
-      if (savedUsage) {
-        setResponse({
-          mode: "single",
-          source: "fallback",
-          usage: JSON.parse(savedUsage) as MealResponse["usage"],
-        });
-      }
     });
   }, []);
 
@@ -69,14 +62,26 @@ export function MealPlannerForm() {
     localStorage.setItem("tinybite-profile", JSON.stringify(profile));
   }, [profile]);
 
+  const suggestedMeals = suggestMeals(mealItems, mealType);
+  const summary = useMemo(() => summarizeMeal(mealItems, mealType), [mealItems, mealType]);
+  const canReview = mealItems.length > 0;
+
   function updateMode(nextMode: PlanningMode) {
     setMode(nextMode);
-    if (nextMode === "whole_day") setMealType("Whole day plan");
-    if (nextMode === "single" && mealType === "Whole day plan") setMealType("Breakfast");
+    if (nextMode === "whole_day") changeMealType("Whole day plan");
+    if (nextMode === "single" && mealType === "Whole day plan") changeMealType("Breakfast");
+  }
+
+  function changeMealType(nextMealType: string) {
+    setMealType(nextMealType);
+    setMealItems((current) => rebalanceSuggestedItems(current, nextMealType, true));
+    setReview(null);
+    setSelectedMealId(null);
   }
 
   function addTranscript(text: string) {
     setFreeText((current) => [current, text].filter(Boolean).join(" ").trim());
+    setTextOpen(true);
   }
 
   function updateSelectedIngredients(nextSelected: string[]) {
@@ -84,16 +89,24 @@ export function MealPlannerForm() {
     setReview(null);
     setSelectedMealId(null);
     setMealItems((current) => {
-      const nextKeys = new Set(nextSelected);
-      const kept = current.filter((item) =>
-        nextSelected.some((selected) => createMealBuilderItem(selected)?.ingredientKey === item.ingredientKey),
-      );
+      const kept = current.filter((item) => nextSelected.some((selected) => createMealBuilderItem(selected)?.ingredientKey === item.ingredientKey));
       const existingKeys = new Set(kept.map((item) => item.ingredientKey));
-      const added = Array.from(nextKeys)
+      const added = nextSelected
         .map((selected) => createMealBuilderItem(selected))
         .filter((item): item is MealBuilderItem => item !== null && !existingKeys.has(item.ingredientKey));
-      return [...kept, ...added];
+      return rebalanceSuggestedItems([...kept, ...added], mealType, true);
     });
+  }
+
+  function applyFreeText() {
+    const normalized = normalizeIngredient(freeText);
+    const textIngredients = ingredientDefinitions
+      .filter((definition) => definition.aliases.some((alias) => normalized.includes(normalizeIngredient(alias))))
+      .map((definition) => definition.name);
+    const inferredMeal = mealTypes.find((type) => normalized.includes(normalizeIngredient(type)));
+    if (inferredMeal) changeMealType(inferredMeal);
+    if (textIngredients.length) updateSelectedIngredients(Array.from(new Set([...selectedIngredients, ...textIngredients])));
+    setTextOpen(false);
   }
 
   async function reviewMeal() {
@@ -108,6 +121,7 @@ export function MealPlannerForm() {
         body: JSON.stringify({
           mealType,
           suggestedMealTitle: selectedMeal?.title,
+          nutritionSummary: summary,
           items: mealItems,
           childProfile: profile,
         }),
@@ -118,7 +132,6 @@ export function MealPlannerForm() {
       }
       setReview(data);
       if (data.usage) {
-        setResponse({ mode, source: "fallback", usage: data.usage });
         localStorage.setItem("tinybite-usage", JSON.stringify(data.usage));
       }
     } catch (caught) {
@@ -128,13 +141,33 @@ export function MealPlannerForm() {
     }
   }
 
-  const suggestedMeals = suggestMeals(mealItems, mealType);
-  const canReview = mealItems.length > 0;
+  function saveMealRecord() {
+    const record = {
+      id: crypto.randomUUID(),
+      savedAt: new Date().toISOString(),
+      date: new Date().toLocaleDateString("en-CA"),
+      mealType,
+      completionPercent,
+      offeredCalories: summary.totalCalories,
+      eatenCalories: Math.round((summary.totalCalories * completionPercent) / 100),
+      items: mealItems.map((item) => ({
+        name: item.name,
+        amount: item.amount,
+        unit: item.unit,
+        calories: item.calories,
+      })),
+    };
+    const saved = JSON.parse(localStorage.getItem("tinybite-meal-records") || "[]") as typeof record[];
+    localStorage.setItem("tinybite-meal-records", JSON.stringify([record, ...saved].slice(0, 120)));
+    setSaveOpen(false);
+    setSavedMessage(`Saved ${mealType}: about ${record.eatenCalories} kcal eaten.`);
+  }
 
   return (
-    <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 pb-10 pt-5 sm:px-6">
-      <header className="flex items-center justify-between gap-3">
-        <UsageBadge usage={response?.usage} />
+    <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 pb-10 pt-5 sm:px-6">
+      <VoiceRecorder onTranscript={addTranscript} disabled={loading} floating />
+
+      <header className="flex items-center justify-end gap-3">
         <CuteButton type="button" variant="ghost" onClick={() => setSettingsOpen(true)}>
           Settings
         </CuteButton>
@@ -142,91 +175,204 @@ export function MealPlannerForm() {
 
       <section className="pt-2 text-center">
         <BabyMascot isLoading={loading} />
-        <h1 className="mt-1 text-4xl font-black tracking-normal text-[#633d55]">TinyBite Planner</h1>
+        <h1 className="brand-title mt-1 text-5xl font-black text-[#633d55]">Dưa Béo</h1>
         <p className="mx-auto mt-2 max-w-sm text-base font-semibold leading-6 text-[#765066]">
           Cute meal ideas with toddler-sized portions
         </p>
       </section>
 
-      <section className="soft-card mt-5 space-y-5 p-4">
-        <div className="grid grid-cols-2 gap-2 rounded-[8px] bg-white/54 p-1">
-          {(["single", "whole_day"] as const).map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => updateMode(item)}
-              className={`pressable min-h-12 rounded-[8px] text-sm font-black ${
-                mode === item ? "bg-white text-[#9c456c] shadow-sm" : "text-[#8a6679]"
-              }`}
-            >
-              {item === "single" ? "Single meal" : "Whole day"}
-            </button>
-          ))}
-        </div>
-
-        <label className="block space-y-2">
-          <span className="text-sm font-black text-[#633d55]">Meal type</span>
-          <select
-            value={mealType}
-            onChange={(event) => {
-              setMealType(event.target.value);
-              if (event.target.value === "Whole day plan") setMode("whole_day");
-            }}
-            className="min-h-12 w-full rounded-[8px] border border-white/80 bg-white/78 px-4 text-base font-bold text-[#633d55] shadow-sm outline-none focus:border-[#ff8dbc]"
-          >
-            {mealTypes.map((type) => (
-              <option key={type}>{type}</option>
+      <section className="mt-5 grid gap-5 lg:grid-cols-[0.95fr_1.25fr] lg:items-start">
+        <div className="soft-card space-y-5 p-4">
+          <div className="grid grid-cols-2 gap-2 rounded-[8px] bg-white/54 p-1">
+            {(["single", "whole_day"] as const).map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => updateMode(item)}
+                className={`pressable min-h-12 rounded-[8px] text-sm font-black ${
+                  mode === item ? "bg-white text-[#9c456c] shadow-sm" : "text-[#8a6679]"
+                }`}
+              >
+                {item === "single" ? "Single meal" : "Whole day"}
+              </button>
             ))}
-          </select>
-        </label>
+          </div>
 
-        <div className="space-y-2">
-          <p className="text-sm font-black text-[#633d55]">Available foods</p>
-          <IngredientChips selected={selectedIngredients} onChange={updateSelectedIngredients} />
+          <div className="flex flex-wrap gap-2">
+            <CuteButton type="button" variant="secondary" onClick={() => setTextOpen(true)} className="min-h-10 px-4 py-2">
+              Type foods
+            </CuteButton>
+            <CuteButton type="button" variant="secondary" onClick={() => setTipsOpen(true)} className="min-h-10 px-4 py-2">
+              Mealtime tips
+            </CuteButton>
+            <CuteButton type="button" variant="secondary" onClick={() => setTargetsOpen(true)} className="min-h-10 px-4 py-2">
+              Calorie map
+            </CuteButton>
+          </div>
+
+          <label className="block space-y-2">
+            <span className="text-sm font-black text-[#633d55]">Meal type</span>
+            <select
+              value={mealType}
+              onChange={(event) => {
+                changeMealType(event.target.value);
+                if (event.target.value === "Whole day plan") setMode("whole_day");
+              }}
+              className="min-h-12 w-full rounded-[8px] border border-white/80 bg-white/78 px-4 text-base font-bold text-[#633d55] shadow-sm outline-none focus:border-[#ff8dbc]"
+            >
+              {mealTypes.map((type) => (
+                <option key={type}>{type}</option>
+              ))}
+            </select>
+          </label>
+
+          <div className="space-y-2">
+            <p className="text-sm font-black text-[#633d55]">Available foods</p>
+            <IngredientChips selected={selectedIngredients} onChange={updateSelectedIngredients} />
+          </div>
         </div>
 
-        <label className="block space-y-2">
-          <span className="text-sm font-black text-[#633d55]">Tell TinyBite what you have</span>
+        <div className="space-y-5">
+          <SuggestedMeals meals={suggestedMeals} selectedId={selectedMealId} onSelect={setSelectedMealId} />
+          <MealQuantityGrid
+            items={mealItems}
+            mealType={mealType}
+            onChange={(items) => {
+              setMealItems(items);
+              setReview(null);
+            }}
+          />
+
+          <div className="soft-card grid gap-3 p-4 sm:grid-cols-2">
+            <CuteButton type="button" className="w-full text-base" disabled={!canReview || loading} onClick={reviewMeal}>
+              {loading ? (
+                <span className="inline-flex items-center justify-center gap-1">
+                  Reviewing
+                  <span className="loading-dot">.</span>
+                  <span className="loading-dot">.</span>
+                  <span className="loading-dot">.</span>
+                </span>
+              ) : (
+                "Review this meal for my kid"
+              )}
+            </CuteButton>
+            <CuteButton type="button" variant="secondary" className="w-full text-base" disabled={!canReview} onClick={() => setSaveOpen(true)}>
+              Save meal record
+            </CuteButton>
+          </div>
+
+          {savedMessage ? <p className="rounded-[8px] bg-[#eaf7e5] p-3 text-sm font-bold text-[#356f3f]">{savedMessage}</p> : null}
+          {error ? <p className="rounded-[8px] bg-[#fff0d7] p-3 text-sm font-bold leading-6 text-[#7a4a20]">{error}</p> : null}
+          <MealReviewPanel review={review} loading={loading} error="" />
+        </div>
+      </section>
+
+      {textOpen ? (
+        <Modal title="Tell Dưa Béo what you have" onClose={() => setTextOpen(false)}>
           <textarea
             value={freeText}
             onChange={(event) => setFreeText(event.target.value)}
-            rows={4}
+            rows={5}
             placeholder="I have eggs and rice and cheese and banana for breakfast."
             className="min-h-32 w-full resize-none rounded-[8px] border border-white/80 bg-white/78 px-4 py-3 text-base font-semibold leading-6 text-[#633d55] shadow-sm outline-none placeholder:text-[#b999aa] focus:border-[#ff8dbc]"
           />
-        </label>
+          <div className="mt-3 flex justify-end">
+            <CuteButton type="button" onClick={applyFreeText}>
+              Add to planner
+            </CuteButton>
+          </div>
+        </Modal>
+      ) : null}
 
-        <VoiceRecorder onTranscript={addTranscript} disabled={loading} />
+      {saveOpen ? (
+        <Modal title="How much did she finish?" onClose={() => setSaveOpen(false)}>
+          <div className="rounded-[8px] bg-white/72 p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-black text-[#633d55]">Estimated completion</p>
+              <p className="text-2xl font-black text-[#9c456c]">{completionPercent}%</p>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={completionPercent}
+              onChange={(event) => setCompletionPercent(Number(event.currentTarget.value))}
+              className="tiny-slider mt-4"
+              style={{
+                background: `linear-gradient(90deg, #b84a78 0 ${completionPercent}%, #f7ddea ${completionPercent}% 100%)`,
+              }}
+            />
+            <p className="mt-3 text-sm font-semibold leading-6 text-[#765066]">
+              Offered {summary.totalCalories} kcal. Estimated eaten {Math.round((summary.totalCalories * completionPercent) / 100)} kcal.
+            </p>
+          </div>
+          <div className="mt-3 flex justify-end">
+            <CuteButton type="button" onClick={saveMealRecord}>
+              Save record
+            </CuteButton>
+          </div>
+        </Modal>
+      ) : null}
 
-        <CuteButton type="button" className="w-full text-base" disabled={!canReview || loading} onClick={reviewMeal}>
-          {loading ? (
-            <span className="inline-flex items-center justify-center gap-1">
-              Reviewing this little plate
-              <span className="loading-dot">.</span>
-              <span className="loading-dot">.</span>
-              <span className="loading-dot">.</span>
-            </span>
-          ) : (
-            "Review this meal for my kid"
-          )}
-        </CuteButton>
+      {tipsOpen ? (
+        <Modal title="Calm mealtime tips" onClose={() => setTipsOpen(false)}>
+          <div className="space-y-3 text-sm font-semibold leading-6 text-[#765066]">
+            <Tip title="When she cries" body="Pause, lower your voice, and name the feeling: You are upset. Food can wait. Keep the plate nearby without chasing bites." />
+            <Tip title="When she eats only part" body="Say: You listened to your tummy. Keep the next planned food predictable instead of bargaining with fruit or milk." />
+            <Tip title="When she wants family food" body="Offer a small planned top-up plate from family food, cut safely. Keep it on her plate, not from an adult fork." />
+            <Tip title="When protein is refused" body="Keep rice safe and familiar. Put protein beside it in a tiny amount, not hidden or stuck to the rice." />
+          </div>
+        </Modal>
+      ) : null}
 
-        {error ? <p className="rounded-[8px] bg-[#fff0d7] p-3 text-sm font-bold leading-6 text-[#7a4a20]">{error}</p> : null}
-      </section>
-
-      <div className="mt-5 space-y-5">
-        <SuggestedMeals meals={suggestedMeals} selectedId={selectedMealId} onSelect={setSelectedMealId} />
-        <MealQuantityGrid
-          items={mealItems}
-          onChange={(items) => {
-            setMealItems(items);
-            setReview(null);
-          }}
-        />
-        <MealReviewPanel review={review} loading={loading} error={error} />
-      </div>
+      {targetsOpen ? (
+        <Modal title="Tiny calorie map" onClose={() => setTargetsOpen(false)}>
+          <div className="grid gap-2">
+            {mealTypes.map((type) => {
+              const target = mealTargets[type];
+              return (
+                <div key={type} className="rounded-[8px] bg-white/72 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-black text-[#633d55]">{type}</p>
+                    <p className="rounded-full bg-[#fff0d7] px-3 py-1 text-xs font-black text-[#8a5422]">{target.calories} kcal</p>
+                  </div>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-[#8a6679]">
+                    Protein {target.protein}g · Carb {target.carbs}g · Fat {target.fat}g
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </Modal>
+      ) : null}
 
       <SettingsPanel open={settingsOpen} profile={profile} onOpenChange={setSettingsOpen} onChange={setProfile} />
+    </div>
+  );
+}
+
+function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-end bg-[#51354a]/20 p-3 backdrop-blur-sm sm:place-items-center">
+      <section className="soft-card max-h-[88vh] w-full max-w-lg overflow-auto p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-black text-[#633d55]">{title}</h2>
+          <button type="button" onClick={onClose} className="pressable grid h-10 w-10 place-items-center rounded-full bg-white/76 font-black text-[#9c456c]">
+            x
+          </button>
+        </div>
+        {children}
+      </section>
+    </div>
+  );
+}
+
+function Tip({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-[8px] bg-white/72 p-3">
+      <p className="font-black text-[#633d55]">{title}</p>
+      <p>{body}</p>
     </div>
   );
 }
