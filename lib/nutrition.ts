@@ -402,7 +402,12 @@ const mealCategoryWeights: Record<string, Partial<Record<NutritionCategory, numb
 
 export function getIngredientDefinition(name: string) {
   const normalized = normalizeIngredient(name);
-  return ingredientDefinitions.find((item) => item.aliases.some((alias) => normalizeIngredient(alias) === normalized));
+  return ingredientDefinitions.find(
+    (item) =>
+      normalizeIngredient(item.name) === normalized ||
+      normalizeIngredient(item.key) === normalized ||
+      item.aliases.some((alias) => normalizeIngredient(alias) === normalized),
+  );
 }
 
 export function normalizeIngredient(value: string) {

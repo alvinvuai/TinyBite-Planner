@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { BabyMascot } from "@/components/BabyMascot";
 import { CuteButton } from "@/components/CuteButton";
 import { IngredientChips } from "@/components/IngredientChips";
@@ -141,26 +142,37 @@ export function MealPlannerForm() {
     }
   }
 
-  function saveMealRecord() {
-    const record = {
-      id: crypto.randomUUID(),
-      savedAt: new Date().toISOString(),
-      date: new Date().toLocaleDateString("en-CA"),
-      mealType,
-      completionPercent,
-      offeredCalories: summary.totalCalories,
-      eatenCalories: Math.round((summary.totalCalories * completionPercent) / 100),
-      items: mealItems.map((item) => ({
-        name: item.name,
-        amount: item.amount,
-        unit: item.unit,
-        calories: item.calories,
-      })),
-    };
-    const saved = JSON.parse(localStorage.getItem("tinybite-meal-records") || "[]") as typeof record[];
-    localStorage.setItem("tinybite-meal-records", JSON.stringify([record, ...saved].slice(0, 120)));
+  async function saveMealRecord() {
+    setError("");
+    const totalMealCalories = summary.totalCalories;
+    const result = await fetch("/api/meal-records", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date: new Date().toLocaleDateString("en-CA"),
+        mealName: mealType,
+        completionPercent,
+        totalMealCalories,
+        ingredients: mealItems.map((item) => ({
+          ingredientKey: item.ingredientKey,
+          name: item.name,
+          amount: item.amount,
+          unit: item.unit,
+          grams: item.grams,
+          calories: item.calories,
+          suggestedAmount: item.suggestedAmount,
+          suggestedUnit: item.suggestedUnit,
+          suggestedCalories: item.suggestedCalories,
+        })),
+      }),
+    });
+    const data = (await result.json()) as { record?: { totalConsumedCalories: number }; message?: string };
+    if (!result.ok || !data.record) {
+      setError(data.message || "Could not save meal record.");
+      return;
+    }
     setSaveOpen(false);
-    setSavedMessage(`Saved ${mealType}: about ${record.eatenCalories} kcal eaten.`);
+    setSavedMessage(`Saved ${mealType}: about ${data.record.totalConsumedCalories} kcal consumed. View it in Report.`);
   }
 
   return (
@@ -168,6 +180,9 @@ export function MealPlannerForm() {
       <VoiceRecorder onTranscript={addTranscript} disabled={loading} floating />
 
       <header className="flex items-center justify-end gap-3">
+        <Link className="pressable rounded-full border border-[#e7ccd9] bg-[#fffafd] px-5 py-3 text-sm font-black text-[#5e3752] shadow-sm" href="/report">
+          Report
+        </Link>
         <CuteButton type="button" variant="ghost" onClick={() => setSettingsOpen(true)}>
           Settings
         </CuteButton>
