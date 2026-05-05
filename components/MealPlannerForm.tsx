@@ -132,7 +132,13 @@ export function MealPlannerForm() {
           childProfile: profile,
         }),
       });
-      const data = (await result.json()) as MealReview & { message?: string };
+      const responseText = await result.text();
+      let data = {} as MealReview & { message?: string };
+      try {
+        data = responseText ? (JSON.parse(responseText) as MealReview & { message?: string }) : data;
+      } catch {
+        throw new Error("Meal review failed. Please try again.");
+      }
       if (!result.ok) {
         throw new Error(data.message || "Meal review failed.");
       }

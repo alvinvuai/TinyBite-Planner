@@ -94,7 +94,23 @@ function fallbackReview(input: z.infer<typeof reviewRequestSchema>): MealReview 
 }
 
 export async function POST(request: NextRequest) {
-  const input = reviewRequestSchema.parse(await request.json());
+  let rawInput: unknown;
+
+  try {
+    rawInput = await request.json();
+  } catch {
+    return NextResponse.json({ error: "BAD_REQUEST", message: "Meal review needs selected foods before it can run." }, { status: 400 });
+  }
+
+  const validation = reviewRequestSchema.safeParse(rawInput);
+  if (!validation.success) {
+    return NextResponse.json(
+      { error: "BAD_REQUEST", message: "Some meal quantities were missing or invalid. Please adjust the foods and try again." },
+      { status: 400 },
+    );
+  }
+
+  const input = validation.data;
   const store = getUsageStore();
   const usage = await store.get();
   const budgetUsd = getBudgetUsd();
@@ -126,32 +142,39 @@ export async function POST(request: NextRequest) {
     output: "JSON only: verdict, score, macroComment, strengths[], suggestions[], safetyNotes[], feedingNote. Prefer numbers over long prose.",
   };
 
-  const completion = await getOpenAiClient().chat.completions.create({
-    model: getMealModel(),
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are a cautious toddler feeding planner. Return valid JSON only. Be brief and numeric. Do not diagnose. Do not promise weight gain.",
-      },
-      { role: "user", content: JSON.stringify(prompt) },
-    ],
-    response_format: { type: "json_object" },
-    max_completion_tokens: 500,
-  });
+  try {
+    const completion = await getOpenAiClient().chat.completions.create({
+      model: getMealModel(),
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a cautious toddler feeding planner. Return valid JSON only. Be brief and numeric. Do not diagnose. Do not promise weight gain.",
+        },
+        { role: "user", content: JSON.stringify(prompt) },
+      ],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 500,
+    });
 
-  const content = completion.choices[0]?.message?.content || "{}";
-  const parsed = aiReviewSchema.parse(JSON.parse(content));
-  const inputTokens = completion.usage?.prompt_tokens ?? 900;
-  const outputTokens = completion.usage?.completion_tokens ?? 350;
-  const estimatedUsd = calculateUsd({ inputTokens, outputTokens });
-  const updated = await store.add(inputTokens, outputTokens, estimatedUsd);
+    const content = completion.choices[0]?.message?.content;
+    if (!content) throw new Error("OpenAI returned an empty review.");
 
-  return NextResponse.json({
-    ...parsed,
-    targetCalories: input.nutritionSummary?.targetCalories,
-    totalCalories: input.items.reduce((sum, item) => sum + item.calories, 0),
-    source: "openai",
-    usage: toUsageSummary(updated.estimatedUsd),
-  } satisfies MealReview);
+    const parsed = aiReviewSchema.parse(JSON.parse(content));
+    const inputTokens = completion.usage?.prompt_tokens ?? 900;
+    const outputTokens = completion.usage?.completion_tokens ?? 350;
+    const estimatedUsd = calculateUsd({ inputTokens, outputTokens });
+    const updated = await store.add(inputTokens, outputTokens, estimatedUsd);
+
+    return NextResponse.json({
+      ...parsed,
+      targetCalories: input.nutritionSummary?.targetCalories,
+      totalCalories: input.items.reduce((sum, item) => sum + item.calories, 0),
+      source: "openai",
+      usage: toUsageSummary(updated.estimatedUsd),
+    } satisfies MealReview);
+  } catch (error) {
+    console.warn("Falling back to local meal review.", error);
+    return NextResponse.json({ ...fallbackReview(input), usage: currentSummary });
+  }
 }
