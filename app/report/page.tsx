@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { getMealRecordStore } from "@/lib/mealRecordStore";
+import { getMealRecordStore, getMealRecordStoreName } from "@/lib/mealRecordStore";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReportPage() {
   const records = await getMealRecordStore().list();
+  const storageName = getMealRecordStoreName();
   const totalConsumed = records.reduce((sum, record) => sum + record.totalConsumedCalories, 0);
   const today = new Date().toLocaleDateString("en-CA");
   const todayRecords = records.filter((record) => record.date === today);
@@ -33,7 +34,7 @@ export default async function ReportPage() {
           <div className="border-b border-[#ead8e2] p-4">
             <p className="text-sm font-black text-[#633d55]">Saved meals for user Dua</p>
             <p className="mt-1 text-xs font-semibold text-[#765066]">
-              This report reads from the local JSON database used by the API route.
+              This report reads from {storageName}. Neon is used automatically when DATABASE_URL is configured.
             </p>
           </div>
 

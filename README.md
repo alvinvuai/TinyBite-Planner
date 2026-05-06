@@ -34,9 +34,20 @@ MONTHLY_BUDGET_USD=10
 ADMIN_SECRET=choose_a_secret
 NOTIFY_EMAIL=
 RESEND_API_KEY=
+DATABASE_URL=
 ```
 
 Set `OPENAI_INPUT_PRICE_PER_1M` and `OPENAI_OUTPUT_PRICE_PER_1M` from the current model pricing page instead of hardcoding pricing into the app.
+
+## Meal Record Storage
+
+Meal records use Neon Postgres automatically when `DATABASE_URL` is configured. Without `DATABASE_URL`, local development falls back to `data/meal-records.json`.
+
+To migrate local JSON records into Neon after setting `DATABASE_URL` in `.env.local`:
+
+```bash
+npm run import:meal-records
+```
 
 ## Usage Endpoint
 
@@ -53,7 +64,7 @@ curl -H "x-admin-secret: $ADMIN_SECRET" http://localhost:3000/api/usage
 3. Add environment variables from `.env.example`.
 4. Deploy.
 
-For v1, usage storage is a local JSON file during development and in-memory on Vercel. For durable production cost controls, replace the `UsageStore` implementation in `lib/usageStore.ts` with Upstash Redis, Vercel KV, Supabase, or Postgres.
+For v1, meal records can use Neon Postgres via `DATABASE_URL`. Usage/budget storage is still a local JSON file during development and in-memory on Vercel. For durable production cost controls, replace the `UsageStore` implementation in `lib/usageStore.ts` with Upstash Redis, Vercel KV, Supabase, or Postgres.
 
 ## GitHub Setup
 
@@ -72,6 +83,7 @@ git push -u origin main
 - `npm run build` creates a production build.
 - `npm run start` serves the production build.
 - `npm run lint` runs Next linting.
+- `npm run import:meal-records` imports local saved meals into Neon.
 
 ## Feeding Safety Scope
 

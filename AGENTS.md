@@ -92,6 +92,7 @@ MONTHLY_BUDGET_USD=10
 ADMIN_SECRET=
 NOTIFY_EMAIL=
 RESEND_API_KEY=
+DATABASE_URL=
 ```
 
 Notes:
@@ -200,7 +201,7 @@ Meal records are stored locally in:
 data/meal-records.json
 ```
 
-This file is ignored by git.
+This file is ignored by git. If `DATABASE_URL`, `POSTGRES_URL`, or `NEON_DATABASE_URL` is configured, meal records are stored in Neon Postgres instead.
 
 Record requirements:
 
@@ -214,8 +215,31 @@ Ways to inspect records:
 - Page: `/report`.
 - API: `/api/meal-records`.
 - Local file: `data/meal-records.json`.
+- Neon dashboard when `DATABASE_URL` is configured.
 
-Vercel caveat: local JSON storage is not persistent in production serverless. For real production, replace with Supabase, Neon/Postgres, Upstash Redis, or Vercel KV.
+Vercel caveat: local JSON storage is not persistent in production serverless. The current sustainable storage choice for meal records is Neon Postgres.
+
+Neon table:
+
+```sql
+meal_records (
+  id uuid primary key,
+  user_name text default 'Dua',
+  date date,
+  meal_name text,
+  completion_percent integer,
+  total_meal_calories integer,
+  total_consumed_calories integer,
+  ingredients jsonb,
+  created_at timestamptz
+)
+```
+
+The table is created automatically on first read/save. To import local JSON records into Neon:
+
+```bash
+npm run import:meal-records
+```
 
 ## Usage And Cost Tracking
 

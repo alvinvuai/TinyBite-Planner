@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import type { MealRecord } from "@/types/mealRecord";
 
 export type MealRecordStore = {
@@ -9,6 +10,10 @@ export type MealRecordStore = {
 
 const dataDir = path.join(process.cwd(), "data");
 const filePath = path.join(dataDir, "meal-records.json");
+
+function getDatabaseUrl() {
+  return process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.NEON_DATABASE_URL || "";
+}
 
 class JsonMealRecordStore implements MealRecordStore {
   async list() {
@@ -29,11 +34,109 @@ class JsonMealRecordStore implements MealRecordStore {
   }
 }
 
+class NeonMealRecordStore implements MealRecordStore {
+  private sql: NeonQueryFunction<false, false>;
+  private ready: Promise<void> | null = null;
+
+  constructor(databaseUrl: string) {
+    this.sql = neon(databaseUrl);
+  }
+
+  private async ensureTable() {
+    if (!this.ready) {
+      this.ready = (async () => {
+        await this.sql`
+          CREATE TABLE IF NOT EXISTS meal_records (
+            id uuid PRIMARY KEY,
+            user_name text NOT NULL DEFAULT 'Dua',
+            date date NOT NULL,
+            meal_name text NOT NULL,
+            completion_percent integer NOT NULL CHECK (completion_percent >= 0 AND completion_percent <= 100),
+            total_meal_calories integer NOT NULL CHECK (total_meal_calories >= 0),
+            total_consumed_calories integer NOT NULL CHECK (total_consumed_calories >= 0),
+            ingredients jsonb NOT NULL DEFAULT '[]'::jsonb,
+            created_at timestamptz NOT NULL DEFAULT now()
+          )
+        `;
+        await this.sql`CREATE INDEX IF NOT EXISTS meal_records_user_date_idx ON meal_records (user_name, date DESC, created_at DESC)`;
+      })();
+    }
+
+    await this.ready;
+  }
+
+  async list() {
+    await this.ensureTable();
+    const rows = await this.sql`
+      SELECT
+        id::text,
+        user_name,
+        to_char(date, 'YYYY-MM-DD') AS date,
+        meal_name,
+        completion_percent,
+        total_meal_calories,
+        total_consumed_calories,
+        ingredients,
+        created_at::text
+      FROM meal_records
+      WHERE user_name = 'Dua'
+      ORDER BY date DESC, created_at DESC
+      LIMIT 1000
+    `;
+
+    return rows.map((row) => ({
+      id: String(row.id),
+      user: "Dua" as const,
+      date: String(row.date),
+      mealName: String(row.meal_name),
+      completionPercent: Number(row.completion_percent),
+      totalMealCalories: Number(row.total_meal_calories),
+      totalConsumedCalories: Number(row.total_consumed_calories),
+      ingredients: Array.isArray(row.ingredients) ? row.ingredients : JSON.parse(String(row.ingredients || "[]")),
+      createdAt: String(row.created_at),
+    }));
+  }
+
+  async add(record: MealRecord) {
+    await this.ensureTable();
+    await this.sql`
+      INSERT INTO meal_records (
+        id,
+        user_name,
+        date,
+        meal_name,
+        completion_percent,
+        total_meal_calories,
+        total_consumed_calories,
+        ingredients,
+        created_at
+      )
+      VALUES (
+        ${record.id}::uuid,
+        ${record.user},
+        ${record.date}::date,
+        ${record.mealName},
+        ${record.completionPercent},
+        ${record.totalMealCalories},
+        ${record.totalConsumedCalories},
+        ${JSON.stringify(record.ingredients)}::jsonb,
+        ${record.createdAt}::timestamptz
+      )
+    `;
+    return record;
+  }
+}
+
 let store: MealRecordStore | null = null;
 
 export function getMealRecordStore() {
   if (!store) {
-    store = new JsonMealRecordStore();
+    const databaseUrl = getDatabaseUrl();
+    store = databaseUrl ? new NeonMealRecordStore(databaseUrl) : new JsonMealRecordStore();
   }
   return store;
+}
+
+export function getMealRecordStoreName() {
+  return getDatabaseUrl() ? "Neon Postgres" : "local JSON";
 }
