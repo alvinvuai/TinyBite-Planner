@@ -35,6 +35,13 @@ const defaultProfile: ChildProfile = {
   fruitOptions: ["Mandarin", "Grape", "Kiwi", "Plum", "Dried plum / prune", "Pear", "Banana"],
 };
 
+function localDateString(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function MealPlannerForm() {
   const [mode, setMode] = useState<PlanningMode>("single");
   const [mealType, setMealType] = useState("Breakfast");
@@ -52,6 +59,7 @@ export function MealPlannerForm() {
   const [review, setReview] = useState<MealReview | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState("");
 
   useEffect(() => {
@@ -157,35 +165,48 @@ export function MealPlannerForm() {
 
   async function saveMealRecord() {
     setError("");
-    const totalMealCalories = summary.totalCalories;
-    const result = await fetch("/api/meal-records", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        date: new Date().toLocaleDateString("en-CA"),
-        mealName: mealType,
-        completionPercent,
-        totalMealCalories,
-        ingredients: mealItems.map((item) => ({
-          ingredientKey: item.ingredientKey,
-          name: item.name,
-          amount: item.amount,
-          unit: item.unit,
-          grams: item.grams,
-          calories: item.calories,
-          suggestedAmount: item.suggestedAmount,
-          suggestedUnit: item.suggestedUnit,
-          suggestedCalories: item.suggestedCalories,
-        })),
-      }),
-    });
-    const data = (await result.json()) as { record?: { totalConsumedCalories: number }; message?: string };
-    if (!result.ok || !data.record) {
-      setError(data.message || "Could not save meal record.");
-      return;
+    setSavedMessage("");
+    setSaving(true);
+    try {
+      const totalMealCalories = summary.totalCalories;
+      const result = await fetch("/api/meal-records", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: localDateString(),
+          mealName: mealType,
+          completionPercent,
+          totalMealCalories,
+          ingredients: mealItems.map((item) => ({
+            ingredientKey: item.ingredientKey,
+            name: item.name,
+            amount: item.amount,
+            unit: item.unit,
+            grams: item.grams,
+            calories: item.calories,
+            suggestedAmount: item.suggestedAmount,
+            suggestedUnit: item.suggestedUnit,
+            suggestedCalories: item.suggestedCalories,
+          })),
+        }),
+      });
+      const responseText = await result.text();
+      let data = {} as { record?: { totalConsumedCalories: number }; message?: string };
+      try {
+        data = responseText ? (JSON.parse(responseText) as { record?: { totalConsumedCalories: number }; message?: string }) : data;
+      } catch {
+        throw new Error("Could not save meal record. Please try again.");
+      }
+      if (!result.ok || !data.record) {
+        throw new Error(data.message || "Could not save meal record.");
+      }
+      setSaveOpen(false);
+      setSavedMessage(`Saved ${mealType}: about ${data.record.totalConsumedCalories} kcal consumed. View it in Report.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not save meal record.");
+    } finally {
+      setSaving(false);
     }
-    setSaveOpen(false);
-    setSavedMessage(`Saved ${mealType}: about ${data.record.totalConsumedCalories} kcal consumed. View it in Report.`);
   }
 
   return (
@@ -294,7 +315,7 @@ export function MealPlannerForm() {
                 "Review this meal for my kid"
               )}
             </CuteButton>
-            <CuteButton type="button" variant="secondary" className="w-full text-base" disabled={!canReview} onClick={() => setSaveOpen(true)}>
+            <CuteButton type="button" variant="secondary" className="w-full text-base" disabled={!canReview || saving} onClick={() => setSaveOpen(true)}>
               Save meal record
             </CuteButton>
           </div>
@@ -346,8 +367,8 @@ export function MealPlannerForm() {
             </p>
           </div>
           <div className="mt-3 flex justify-end">
-            <CuteButton type="button" onClick={saveMealRecord}>
-              Save record
+            <CuteButton type="button" onClick={saveMealRecord} disabled={saving}>
+              {saving ? "Saving..." : "Save record"}
             </CuteButton>
           </div>
         </Modal>

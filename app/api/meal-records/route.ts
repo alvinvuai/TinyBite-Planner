@@ -31,7 +31,23 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const input = createMealRecordSchema.parse(await request.json());
+  let rawInput: unknown;
+
+  try {
+    rawInput = await request.json();
+  } catch {
+    return NextResponse.json({ error: "BAD_REQUEST", message: "Meal record data was missing. Please try saving again." }, { status: 400 });
+  }
+
+  const validation = createMealRecordSchema.safeParse(rawInput);
+  if (!validation.success) {
+    return NextResponse.json(
+      { error: "BAD_REQUEST", message: "Some meal record details were missing or invalid. Please adjust the meal and try again." },
+      { status: 400 },
+    );
+  }
+
+  const input = validation.data;
   const totalMealCalories = Math.round(input.totalMealCalories);
   const completionPercent = Math.round(input.completionPercent);
   const record: MealRecord = {
