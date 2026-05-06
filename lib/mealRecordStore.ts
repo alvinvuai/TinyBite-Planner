@@ -132,11 +132,36 @@ let store: MealRecordStore | null = null;
 export function getMealRecordStore() {
   if (!store) {
     const databaseUrl = getDatabaseUrl();
-    store = databaseUrl ? new NeonMealRecordStore(databaseUrl) : new JsonMealRecordStore();
+    store = databaseUrl ? new ResilientMealRecordStore(new NeonMealRecordStore(databaseUrl), new JsonMealRecordStore()) : new JsonMealRecordStore();
   }
   return store;
 }
 
 export function getMealRecordStoreName() {
   return getDatabaseUrl() ? "Neon Postgres" : "local JSON";
+}
+
+class ResilientMealRecordStore implements MealRecordStore {
+  constructor(
+    private primary: MealRecordStore,
+    private fallback: MealRecordStore,
+  ) {}
+
+  async list() {
+    try {
+      return await this.primary.list();
+    } catch (error) {
+      console.warn("Neon meal record read failed. Falling back to local JSON.", error);
+      return this.fallback.list();
+    }
+  }
+
+  async add(record: MealRecord) {
+    try {
+      return await this.primary.add(record);
+    } catch (error) {
+      console.warn("Neon meal record save failed. Falling back to local JSON.", error);
+      return this.fallback.add(record);
+    }
+  }
 }

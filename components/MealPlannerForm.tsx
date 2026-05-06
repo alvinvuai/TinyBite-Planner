@@ -54,6 +54,7 @@ export function MealPlannerForm() {
   const [targetsOpen, setTargetsOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [completionPercent, setCompletionPercent] = useState(80);
+  const [recordDate, setRecordDate] = useState(localDateString());
   const [mealItems, setMealItems] = useState<MealBuilderItem[]>([]);
   const [selectedMealId, setSelectedMealId] = useState<string | null>(null);
   const [review, setReview] = useState<MealReview | null>(null);
@@ -61,6 +62,7 @@ export function MealPlannerForm() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState("");
+  const [saveToastOpen, setSaveToastOpen] = useState(false);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -72,6 +74,12 @@ export function MealPlannerForm() {
   useEffect(() => {
     localStorage.setItem("tinybite-profile", JSON.stringify(profile));
   }, [profile]);
+
+  useEffect(() => {
+    if (!saveToastOpen) return;
+    const timer = window.setTimeout(() => setSaveToastOpen(false), 2600);
+    return () => window.clearTimeout(timer);
+  }, [saveToastOpen]);
 
   const suggestedMeals = suggestMeals(mealItems, mealType);
   const summary = useMemo(() => summarizeMeal(mealItems, mealType), [mealItems, mealType]);
@@ -173,7 +181,7 @@ export function MealPlannerForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          date: localDateString(),
+          date: recordDate,
           mealName: mealType,
           completionPercent,
           totalMealCalories,
@@ -201,6 +209,7 @@ export function MealPlannerForm() {
         throw new Error(data.message || "Could not save meal record.");
       }
       setSaveOpen(false);
+      setSaveToastOpen(true);
       setSavedMessage(`Saved ${mealType}: about ${data.record.totalConsumedCalories} kcal consumed. View it in Report.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not save meal record.");
@@ -212,6 +221,18 @@ export function MealPlannerForm() {
   return (
     <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 pb-10 pt-5 sm:px-6">
       <VoiceRecorder onTranscript={addTranscript} disabled={loading} floating />
+
+      {saveToastOpen ? (
+        <div className="pointer-events-none fixed inset-x-3 top-20 z-[70] flex justify-center sm:top-6">
+          <div className="save-success-pop relative overflow-hidden rounded-[8px] border border-[#b9e5c2] bg-[#f2fff1] px-5 py-4 text-center shadow-[0_18px_42px_rgba(71,121,76,0.22)]">
+            <span className="save-success-sparkle left-4 top-3">✦</span>
+            <span className="save-success-sparkle right-5 top-5 delay-150">✦</span>
+            <span className="save-success-sparkle bottom-3 left-1/2 delay-300">✦</span>
+            <p className="text-base font-black text-[#2f6b3a]">Record saved successfully</p>
+            <p className="mt-1 text-xs font-bold text-[#4f7b58]">Added to Dua&apos;s meal report.</p>
+          </div>
+        </div>
+      ) : null}
 
       <header className="flex items-center justify-end gap-3">
         <Link className="pressable rounded-full border border-[#e7ccd9] bg-[#fffafd] px-5 py-3 text-sm font-black text-[#5e3752] shadow-sm" href="/report">
@@ -315,7 +336,16 @@ export function MealPlannerForm() {
                 "Review this meal for my kid"
               )}
             </CuteButton>
-            <CuteButton type="button" variant="secondary" className="w-full text-base" disabled={!canReview || saving} onClick={() => setSaveOpen(true)}>
+            <CuteButton
+              type="button"
+              variant="secondary"
+              className="w-full text-base"
+              disabled={!canReview || saving}
+              onClick={() => {
+                setRecordDate(localDateString());
+                setSaveOpen(true);
+              }}
+            >
               Save meal record
             </CuteButton>
           </div>
@@ -346,6 +376,15 @@ export function MealPlannerForm() {
       {saveOpen ? (
         <Modal title="How much did she finish?" onClose={() => setSaveOpen(false)}>
           <div className="rounded-[8px] bg-white/72 p-4">
+            <label className="mb-4 block space-y-2">
+              <span className="text-sm font-black text-[#633d55]">Meal date</span>
+              <input
+                type="date"
+                value={recordDate}
+                onChange={(event) => setRecordDate(event.currentTarget.value || localDateString())}
+                className="min-h-12 w-full rounded-[8px] border border-[#f6cbdb] bg-white px-3 text-base font-black text-[#633d55] outline-none focus:border-[#ff8dbc]"
+              />
+            </label>
             <div className="flex items-center justify-between">
               <p className="text-sm font-black text-[#633d55]">Estimated completion</p>
               <p className="text-2xl font-black text-[#9c456c]">{completionPercent}%</p>
