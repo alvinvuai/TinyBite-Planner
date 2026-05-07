@@ -98,15 +98,27 @@ export const categoryStyles: Record<NutritionCategory, { text: string; bg: strin
 export const ingredientDefinitions: IngredientDefinition[] = [
   {
     key: "rice",
-    name: "Cooked rice",
-    aliases: ["rice", "white rice", "cooked rice"],
+    name: "Jasmine rice (cooked)",
+    aliases: ["rice", "jasmine rice", "white rice", "cooked rice"],
     category: "carb",
     caloriesPer100g: 130,
     defaultAmount: 8,
     defaultUnit: "tbsp",
     units: [gramUnit(5), tbsp(9.9), piece("rice spoon", 20, 0.5)],
-    nutrientsPer100g: n({ protein: 2.7, carbs: 28.2, fat: 0.3, fiber: 0.4, iron: 1.2, zinc: 0.5 }),
-    note: "Cooked white rice estimate; tablespoon weight varies with grain and packing.",
+    nutrientsPer100g: n({ protein: 2.69, carbs: 28.2, fat: 0.28, fiber: 0.4, iron: 1.2, zinc: 0.49, calcium: 10, omega3: 13 }),
+    note: "USDA SR Legacy (FDC 168878) long-grain cooked profile used as jasmine cooked estimate.",
+  },
+  {
+    key: "glutinous_rice",
+    name: "Glutinous rice (cooked)",
+    aliases: ["glutinous rice", "sticky rice", "sweet rice"],
+    category: "carb",
+    caloriesPer100g: 97,
+    defaultAmount: 8,
+    defaultUnit: "tbsp",
+    units: [gramUnit(5), tbsp(9.9), piece("rice spoon", 20, 0.5)],
+    nutrientsPer100g: n({ protein: 2.02, carbs: 21.1, fat: 0.19, fiber: 1, iron: 0.14, zinc: 0.41, calcium: 2, omega3: 3 }),
+    note: "USDA SR Legacy (FDC 169711) glutinous rice, cooked.",
   },
   {
     key: "egg",
@@ -396,6 +408,30 @@ export const ingredientDefinitions: IngredientDefinition[] = [
     nutrientsPer100g: n({ fat: 100, omega3: 760 }),
     note: "1 tbsp olive oil is about 13.5 g; 1 tsp is about 4.5 g.",
   },
+  {
+    key: "avocado_oil",
+    name: "Avocado oil",
+    aliases: ["avocado oil"],
+    category: "fat",
+    caloriesPer100g: 884,
+    defaultAmount: 1,
+    defaultUnit: "tsp",
+    units: [tsp(4.5), tbsp(13.5), mlUnit(0.91, 1), gramUnit(1)],
+    nutrientsPer100g: n({ fat: 100, omega3: 957 }),
+    note: "USDA SR Legacy (FDC 173573).",
+  },
+  {
+    key: "canola_oil",
+    name: "Canola oil",
+    aliases: ["canola oil", "rapeseed oil"],
+    category: "fat",
+    caloriesPer100g: 884,
+    defaultAmount: 1,
+    defaultUnit: "tsp",
+    units: [tsp(4.6), tbsp(13.8), mlUnit(0.92, 1), gramUnit(1)],
+    nutrientsPer100g: n({ fat: 100, omega3: 9140 }),
+    note: "USDA SR Legacy (FDC 172336).",
+  },
 ];
 
 const categories: NutritionCategory[] = ["carb", "protein", "dairy", "fruit", "vegetable", "fat", "treat"];
@@ -435,6 +471,14 @@ const mealCategoryWeights: Record<string, Partial<Record<NutritionCategory, numb
   "Bedtime milk/yoghurt": { dairy: 0.85, fat: 0.1, fruit: 0.05 },
   "Whole day plan": { carb: 0.35, protein: 0.25, dairy: 0.14, fruit: 0.08, vegetable: 0.08, fat: 0.1 },
 };
+
+function hasAnyRice(keys: Set<string>) {
+  return keys.has("rice") || keys.has("glutinous_rice");
+}
+
+function hasAnyOil(keys: Set<string>) {
+  return keys.has("olive_oil") || keys.has("avocado_oil") || keys.has("canola_oil");
+}
 
 export function getIngredientDefinition(name: string) {
   const normalized = normalizeIngredient(name);
@@ -593,25 +637,25 @@ export function suggestMeals(ingredients: MealBuilderItem[], mealType: string): 
   const suggestions: SuggestedMeal[] = [];
   const type = mealType === "Whole day plan" ? "Breakfast" : mealType;
 
-  if (keys.has("egg") && keys.has("rice")) {
+  if (keys.has("egg") && hasAnyRice(keys)) {
     suggestions.push({
       id: "egg-rice-fingers",
       title: "Soft Egg Rice Fingers",
       subtitle: "Rice patties with egg kept soft and easy to hold.",
       mealType: type,
-      ingredients: ["Cooked rice", "Egg", keys.has("cheese") ? "Cheese" : "Butter or olive oil"],
+      ingredients: ["Rice", "Egg", keys.has("cheese") ? "Cheese" : "Butter or oil"],
       steps: ["Mix a small amount of rice with egg.", "Cook as soft mini patties.", "Let cool and cut into finger strips."],
       safety: "Serve soft and cool enough. Keep some plain rice separate if mixed protein is rejected.",
     });
   }
 
-  if (keys.has("egg") && (keys.has("cheese") || keys.has("olive_oil") || keys.has("butter"))) {
+  if (keys.has("egg") && (keys.has("cheese") || hasAnyOil(keys) || keys.has("butter"))) {
     suggestions.push({
       id: "mini-omelette-strips",
       title: "Mini Omelette Strips",
       subtitle: "A soft protein-first finger food with a little energy-rich fat.",
       mealType: type,
-      ingredients: ["Egg", keys.has("cheese") ? "Cheese" : "Yoghurt", keys.has("olive_oil") ? "Olive oil" : "Butter"],
+      ingredients: ["Egg", keys.has("cheese") ? "Cheese" : "Yoghurt", hasAnyOil(keys) ? "Oil" : "Butter"],
       steps: ["Whisk egg with cheese if using.", "Cook gently in a little fat.", "Slice into soft strips."],
       safety: "Cook egg fully and cut into toddler-safe strips.",
     });
@@ -629,13 +673,13 @@ export function suggestMeals(ingredients: MealBuilderItem[], mealType: string): 
     });
   }
 
-  if (keys.has("rice") && (keys.has("chicken") || keys.has("fish") || keys.has("tofu") || keys.has("beans_lentils") || keys.has("beef"))) {
+  if (hasAnyRice(keys) && (keys.has("chicken") || keys.has("fish") || keys.has("tofu") || keys.has("beans_lentils") || keys.has("beef"))) {
     suggestions.push({
       id: "separate-rice-protein-plate",
       title: "Rice + Protein Side Plate",
       subtitle: "Safe rice with protein served separately for gentle exposure.",
       mealType: type,
-      ingredients: ["Cooked rice", "Protein", "Vegetables", "Olive oil or butter"],
+      ingredients: ["Rice", "Protein", "Vegetables", "Oil or butter"],
       steps: ["Put rice in one section of the plate.", "Place protein beside it, not hidden in the rice.", "Add soft veg and a little fat."],
       safety: "If she refuses protein, keep the exposure calm and do not replace it with fruit.",
     });
