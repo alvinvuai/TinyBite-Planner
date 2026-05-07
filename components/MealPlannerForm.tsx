@@ -35,11 +35,68 @@ const defaultProfile: ChildProfile = {
   fruitOptions: ["Mandarin", "Grape", "Kiwi", "Plum", "Dried plum / prune", "Pear", "Banana"],
 };
 
+const mealDraftStorageKey = "tinybite-meal-drafts";
+const defaultDraftId = "meal-draft-1";
+
+type MealDraftSession = {
+  id: string;
+  title: string;
+  mode: PlanningMode;
+  mealType: string;
+  selectedIngredients: string[];
+  freeText: string;
+  mealItems: MealBuilderItem[];
+  selectedMealId: string | null;
+  updatedAt: string;
+};
+
 function localDateString(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function createEmptyDraft(mealType = "Breakfast", index = 1): MealDraftSession {
+  return {
+    id: typeof crypto !== "undefined" && "randomUUID" in crypto ? `meal-draft-${crypto.randomUUID()}` : `meal-draft-${Date.now()}`,
+    title: `Draft ${index}`,
+    mode: mealType === "Whole day plan" ? "whole_day" : "single",
+    mealType,
+    selectedIngredients: [],
+    freeText: "",
+    mealItems: [],
+    selectedMealId: null,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function createInitialDraft(): MealDraftSession {
+  return {
+    ...createEmptyDraft("Breakfast", 1),
+    id: defaultDraftId,
+  };
+}
+
+function nextDraftMealType(currentMealType: string) {
+  if (currentMealType === "Breakfast") return "Lunch";
+  if (currentMealType === "Lunch") return "Dinner";
+  const currentIndex = mealTypes.indexOf(currentMealType);
+  return mealTypes[currentIndex + 1] ?? "Breakfast";
+}
+
+function isMealDraftSession(value: unknown): value is MealDraftSession {
+  if (!value || typeof value !== "object") return false;
+  const draft = value as Partial<MealDraftSession>;
+  return (
+    typeof draft.id === "string" &&
+    typeof draft.title === "string" &&
+    (draft.mode === "single" || draft.mode === "whole_day") &&
+    typeof draft.mealType === "string" &&
+    Array.isArray(draft.selectedIngredients) &&
+    typeof draft.freeText === "string" &&
+    Array.isArray(draft.mealItems)
+  );
 }
 
 export function MealPlannerForm() {
@@ -63,11 +120,32 @@ export function MealPlannerForm() {
   const [saving, setSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState("");
   const [saveToastOpen, setSaveToastOpen] = useState(false);
+  const [mealSessions, setMealSessions] = useState<MealDraftSession[]>(() => [createInitialDraft()]);
+  const [activeSessionId, setActiveSessionId] = useState(defaultDraftId);
+  const [sessionsReady, setSessionsReady] = useState(false);
 
   useEffect(() => {
     queueMicrotask(() => {
       const savedProfile = localStorage.getItem("tinybite-profile");
       if (savedProfile) setProfile({ ...defaultProfile, ...(JSON.parse(savedProfile) as Partial<ChildProfile>) });
+
+      try {
+        const savedDrafts = localStorage.getItem(mealDraftStorageKey);
+        if (savedDrafts) {
+          const parsed = JSON.parse(savedDrafts) as { activeSessionId?: string; sessions?: unknown[] };
+          const sessions = Array.isArray(parsed.sessions) ? parsed.sessions.filter(isMealDraftSession) : [];
+          if (sessions.length) {
+            const active = sessions.find((session) => session.id === parsed.activeSessionId) ?? sessions[0];
+            setMealSessions(sessions);
+            setActiveSessionId(active.id);
+            restoreSession(active);
+          }
+        }
+      } catch {
+        localStorage.removeItem(mealDraftStorageKey);
+      } finally {
+        setSessionsReady(true);
+      }
     });
   }, []);
 
@@ -80,6 +158,27 @@ export function MealPlannerForm() {
     const timer = window.setTimeout(() => setSaveToastOpen(false), 2600);
     return () => window.clearTimeout(timer);
   }, [saveToastOpen]);
+
+  useEffect(() => {
+    if (!sessionsReady) return;
+    const activeIndex = mealSessions.findIndex((session) => session.id === activeSessionId);
+    const activeSession = mealSessions[activeIndex];
+    const activeSnapshot: MealDraftSession = {
+      id: activeSessionId,
+      title: activeSession?.title || `Draft ${activeIndex + 1 || 1}`,
+      mode,
+      mealType,
+      selectedIngredients,
+      freeText,
+      mealItems,
+      selectedMealId,
+      updatedAt: new Date().toISOString(),
+    };
+    const sessions = activeSession
+      ? mealSessions.map((session) => (session.id === activeSessionId ? activeSnapshot : session))
+      : [...mealSessions, activeSnapshot];
+    localStorage.setItem(mealDraftStorageKey, JSON.stringify({ activeSessionId, sessions }));
+  }, [activeSessionId, freeText, mealItems, mealSessions, mealType, mode, selectedIngredients, selectedMealId, sessionsReady]);
 
   const suggestedMeals = suggestMeals(mealItems, mealType);
   const summary = useMemo(() => summarizeMeal(mealItems, mealType), [mealItems, mealType]);
@@ -96,9 +195,76 @@ export function MealPlannerForm() {
     setMealType(nextMealType);
     const allowedKeys = new Set(getAllowedIngredientDefinitions(nextMealType).map((ingredient) => ingredient.key));
     setSelectedIngredients((current) => current.filter((selected) => isIngredientAllowedForMeal(selected, nextMealType)));
-    setMealItems((current) => rebalanceSuggestedItems(current.filter((item) => allowedKeys.has(item.ingredientKey)), nextMealType, true));
+    setMealItems((current) => rebalanceSuggestedItems(current.filter((item) => allowedKeys.has(item.ingredientKey)), nextMealType));
     setReview(null);
     setSelectedMealId(null);
+  }
+
+  function restoreSession(session: MealDraftSession) {
+    setMode(session.mode);
+    setMealType(session.mealType);
+    setSelectedIngredients(session.selectedIngredients);
+    setFreeText(session.freeText);
+    setMealItems(session.mealItems);
+    setSelectedMealId(session.selectedMealId);
+    setReview(null);
+    setError("");
+    setSavedMessage("");
+  }
+
+  function getCurrentSessionSnapshot(existing?: MealDraftSession): MealDraftSession {
+    return {
+      id: activeSessionId,
+      title: existing?.title || `Draft ${mealSessions.findIndex((session) => session.id === activeSessionId) + 1 || 1}`,
+      mode,
+      mealType,
+      selectedIngredients,
+      freeText,
+      mealItems,
+      selectedMealId,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  function switchSession(sessionId: string) {
+    if (sessionId === activeSessionId) return;
+    const target = mealSessions.find((session) => session.id === sessionId);
+    if (!target) return;
+    setMealSessions((current) =>
+      current.map((session) => (session.id === activeSessionId ? getCurrentSessionSnapshot(session) : session)),
+    );
+    setActiveSessionId(target.id);
+    restoreSession(target);
+  }
+
+  function addMealSession() {
+    const nextSession = createEmptyDraft(nextDraftMealType(mealType), mealSessions.length + 1);
+    setMealSessions((current) => [
+      ...current.map((session) => (session.id === activeSessionId ? getCurrentSessionSnapshot(session) : session)),
+      nextSession,
+    ]);
+    setActiveSessionId(nextSession.id);
+    restoreSession(nextSession);
+  }
+
+  function closeMealSession(sessionId: string) {
+    const closingActiveSession = sessionId === activeSessionId;
+    if (mealSessions.length === 1) {
+      const resetSession = createInitialDraft();
+      setMealSessions([resetSession]);
+      setActiveSessionId(resetSession.id);
+      restoreSession(resetSession);
+      return;
+    }
+    const remainingSessions = mealSessions
+      .map((session) => (session.id === activeSessionId ? getCurrentSessionSnapshot(session) : session))
+      .filter((session) => session.id !== sessionId);
+    const nextActive = closingActiveSession ? remainingSessions[0] : remainingSessions.find((session) => session.id === activeSessionId);
+    setMealSessions(remainingSessions);
+    if (nextActive) {
+      setActiveSessionId(nextActive.id);
+      if (closingActiveSession) restoreSession(nextActive);
+    }
   }
 
   function addTranscript(text: string) {
@@ -117,7 +283,7 @@ export function MealPlannerForm() {
       const added = allowedSelected
         .map((selected) => createMealBuilderItem(selected))
         .filter((item): item is MealBuilderItem => item !== null && !existingKeys.has(item.ingredientKey));
-      return rebalanceSuggestedItems([...kept, ...added], targetMealType, true);
+      return rebalanceSuggestedItems([...kept, ...added], targetMealType);
     });
   }
 
@@ -253,6 +419,46 @@ export function MealPlannerForm() {
 
       <section className="mt-5 grid gap-5 lg:grid-cols-[0.95fr_1.25fr] lg:items-start">
         <div className="soft-card space-y-5 p-4">
+          <div className="rounded-[8px] border border-[#efd6e2] bg-white/62 p-3 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-black text-[#633d55]">Meal drafts</p>
+              <CuteButton type="button" variant="secondary" onClick={addMealSession} className="min-h-9 px-3 py-2 text-xs">
+                New draft
+              </CuteButton>
+            </div>
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+              {mealSessions.map((session, index) => {
+                const active = session.id === activeSessionId;
+                const foodCount = active ? mealItems.length : session.mealItems.length;
+                return (
+                  <div
+                    key={session.id}
+                    className={`flex min-w-[8.75rem] items-center rounded-[8px] border shadow-sm ${
+                      active ? "border-[#c35f8d] bg-[#ffe6f0]" : "border-[#ead8e2] bg-[#fffafd]"
+                    }`}
+                  >
+                    <button type="button" onClick={() => switchSession(session.id)} className="min-w-0 flex-1 px-3 py-2 text-left">
+                      <span className={`block truncate text-xs font-black ${active ? "text-[#7d3157]" : "text-[#633d55]"}`}>
+                        {session.title || `Draft ${index + 1}`}
+                      </span>
+                      <span className="block truncate text-[11px] font-bold text-[#8a6679]">
+                        {active ? mealType : session.mealType} · {foodCount} foods
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Close ${session.title || `Draft ${index + 1}`}`}
+                      onClick={() => closeMealSession(session.id)}
+                      className="mr-1 grid h-7 w-7 flex-none place-items-center rounded-full text-xs font-black text-[#9c456c]"
+                    >
+                      x
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-2 rounded-[8px] bg-white/54 p-1">
             {(["single", "whole_day"] as const).map((item) => (
               <button

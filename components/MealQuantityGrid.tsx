@@ -34,11 +34,11 @@ export function MealQuantityGrid({ items, mealType, onChange }: MealQuantityGrid
     const definition = ingredientDefinitions.find((item) => item.key === extraKey);
     if (!definition) return;
     const next = createMealBuilderItem(definition.name);
-    if (next) onChange(rebalanceSuggestedItems([...items, next], mealType, true));
+    if (next) onChange(rebalanceSuggestedItems([...items, next], mealType));
   }
 
   function removeItem(id: string) {
-    onChange(rebalanceSuggestedItems(items.filter((item) => item.id !== id), mealType, true));
+    onChange(rebalanceSuggestedItems(items.filter((item) => item.id !== id), mealType));
   }
 
   if (!items.length) {
