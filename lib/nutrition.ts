@@ -266,15 +266,39 @@ export const ingredientDefinitions: IngredientDefinition[] = [
   },
   {
     key: "chicken",
-    name: "Chicken",
-    aliases: ["chicken"],
+    name: "Chicken breast",
+    aliases: ["chicken", "chicken breast", "breast"],
     category: "protein",
     caloriesPer100g: 165,
     defaultAmount: 25,
     defaultUnit: "g",
     units: [gramUnit(5), piece("strip", 15, 1), piece("shredded bite", 5, 1)],
     nutrientsPer100g: n({ protein: 31, fat: 3.6, iron: 1, zinc: 1, calcium: 15, omega3: 40 }),
-    note: "Cook until tender; keep separate if mixed protein is refused.",
+    note: "USDA FDC 171477, breast meat-only cooked/roasted.",
+  },
+  {
+    key: "chicken_thigh",
+    name: "Chicken thigh",
+    aliases: ["chicken thigh", "thigh"],
+    category: "protein",
+    caloriesPer100g: 209,
+    defaultAmount: 25,
+    defaultUnit: "g",
+    units: [gramUnit(5), piece("strip", 15, 1), piece("shredded bite", 5, 1)],
+    nutrientsPer100g: n({ protein: 26, fat: 10.9, iron: 1.3, zinc: 2.4, calcium: 11, omega3: 110 }),
+    note: "USDA FoodData Central thigh meat-only cooked/roasted profile.",
+  },
+  {
+    key: "chicken_drumstick",
+    name: "Chicken drumstick",
+    aliases: ["chicken drumstick", "drumstick"],
+    category: "protein",
+    caloriesPer100g: 172,
+    defaultAmount: 25,
+    defaultUnit: "g",
+    units: [gramUnit(5), piece("strip", 15, 1), piece("shredded bite", 5, 1)],
+    nutrientsPer100g: n({ protein: 28.3, fat: 5.7, iron: 1.2, zinc: 2.7, calcium: 12, omega3: 80 }),
+    note: "USDA FoodData Central drumstick meat-only cooked profile.",
   },
   {
     key: "fish",
@@ -385,6 +409,42 @@ export const ingredientDefinitions: IngredientDefinition[] = [
     note: "Cook until soft; calories vary by vegetable.",
   },
   {
+    key: "broccoli",
+    name: "Broccoli (cooked)",
+    aliases: ["broccoli"],
+    category: "vegetable",
+    caloriesPer100g: 35,
+    defaultAmount: 30,
+    defaultUnit: "g",
+    units: [gramUnit(5), piece("soft floret", 12, 1), piece("chopped spoon", 10, 1)],
+    nutrientsPer100g: n({ protein: 2.38, carbs: 7.18, fat: 0.41, fiber: 3.3, iron: 0.67, zinc: 0.45, calcium: 40, omega3: 39 }),
+    note: "USDA FDC 169967, boiled/drained without salt.",
+  },
+  {
+    key: "carrot",
+    name: "Carrot (cooked)",
+    aliases: ["carrot", "carrots"],
+    category: "vegetable",
+    caloriesPer100g: 35,
+    defaultAmount: 30,
+    defaultUnit: "g",
+    units: [gramUnit(5), piece("stick", 8, 1), piece("chopped spoon", 10, 1)],
+    nutrientsPer100g: n({ protein: 0.76, carbs: 8.22, fat: 0.18, fiber: 3, iron: 0.34, zinc: 0.24, calcium: 30, omega3: 1 }),
+    note: "USDA FDC 170394, boiled/drained without salt.",
+  },
+  {
+    key: "spinach",
+    name: "Spinach (cooked)",
+    aliases: ["spinach"],
+    category: "vegetable",
+    caloriesPer100g: 23,
+    defaultAmount: 30,
+    defaultUnit: "g",
+    units: [gramUnit(5), piece("chopped spoon", 10, 1), piece("small bunch", 20, 1)],
+    nutrientsPer100g: n({ protein: 2.97, carbs: 3.75, fat: 0.26, fiber: 2.4, iron: 3.57, zinc: 0.53, calcium: 136, omega3: 138 }),
+    note: "USDA FDC 168463, boiled/drained without salt.",
+  },
+  {
     key: "butter",
     name: "Butter",
     aliases: ["butter"],
@@ -478,6 +538,10 @@ function hasAnyRice(keys: Set<string>) {
 
 function hasAnyOil(keys: Set<string>) {
   return keys.has("olive_oil") || keys.has("avocado_oil") || keys.has("canola_oil");
+}
+
+function hasAnyChicken(keys: Set<string>) {
+  return keys.has("chicken") || keys.has("chicken_thigh") || keys.has("chicken_drumstick");
 }
 
 export function getIngredientDefinition(name: string) {
@@ -673,7 +737,7 @@ export function suggestMeals(ingredients: MealBuilderItem[], mealType: string): 
     });
   }
 
-  if (hasAnyRice(keys) && (keys.has("chicken") || keys.has("fish") || keys.has("tofu") || keys.has("beans_lentils") || keys.has("beef"))) {
+  if (hasAnyRice(keys) && (hasAnyChicken(keys) || keys.has("fish") || keys.has("tofu") || keys.has("beans_lentils") || keys.has("beef"))) {
     suggestions.push({
       id: "separate-rice-protein-plate",
       title: "Rice + Protein Side Plate",
@@ -726,7 +790,11 @@ export function summarizeMeal(items: MealBuilderItem[], mealType = "Breakfast"):
       if (["banana", "mandarin", "grape", "kiwi", "plum", "prune", "pear"].includes(item.ingredientKey)) {
         summary.fruitCalories += item.calories;
       }
-      if (["egg", "cheese", "yoghurt", "fresh_cow_milk", "pediasure_milk", "chicken", "fish", "beef", "pork", "tofu", "beans_lentils"].includes(item.ingredientKey)) {
+      if (
+        ["egg", "cheese", "yoghurt", "fresh_cow_milk", "pediasure_milk", "chicken", "chicken_thigh", "chicken_drumstick", "fish", "beef", "pork", "tofu", "beans_lentils"].includes(
+          item.ingredientKey,
+        )
+      ) {
         summary.proteinItems.push(item);
       }
       return summary;
