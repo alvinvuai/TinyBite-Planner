@@ -313,6 +313,18 @@ export const ingredientDefinitions: IngredientDefinition[] = [
     note: "Check carefully for bones.",
   },
   {
+    key: "prawn",
+    name: "Prawn",
+    aliases: ["prawn", "prawns", "shrimp"],
+    category: "protein",
+    caloriesPer100g: 99,
+    defaultAmount: 25,
+    defaultUnit: "g",
+    units: [gramUnit(5), piece("small prawn", 6, 1), piece("chopped spoon", 10, 1)],
+    nutrientsPer100g: n({ protein: 24, carbs: 0.2, fat: 0.3, iron: 0.5, zinc: 1.3, calcium: 70, omega3: 295 }),
+    note: "Serve fully cooked and chopped into toddler-safe pieces.",
+  },
+  {
     key: "beef",
     name: "Beef",
     aliases: ["beef"],
@@ -443,6 +455,18 @@ export const ingredientDefinitions: IngredientDefinition[] = [
     units: [gramUnit(5), piece("chopped spoon", 10, 1), piece("small bunch", 20, 1)],
     nutrientsPer100g: n({ protein: 2.97, carbs: 3.75, fat: 0.26, fiber: 2.4, iron: 3.57, zinc: 0.53, calcium: 136, omega3: 138 }),
     note: "USDA FDC 168463, boiled/drained without salt.",
+  },
+  {
+    key: "mushroom",
+    name: "Mushroom (cooked)",
+    aliases: ["mushroom", "mushrooms"],
+    category: "vegetable",
+    caloriesPer100g: 28,
+    defaultAmount: 30,
+    defaultUnit: "g",
+    units: [gramUnit(5), piece("slice", 5, 1), piece("chopped spoon", 10, 1)],
+    nutrientsPer100g: n({ protein: 2.2, carbs: 4.3, fat: 0.4, fiber: 1.8, iron: 0.5, zinc: 0.7, calcium: 3, omega3: 20 }),
+    note: "Cook until soft and finely sliced for easier chewing.",
   },
   {
     key: "butter",
@@ -737,7 +761,7 @@ export function suggestMeals(ingredients: MealBuilderItem[], mealType: string): 
     });
   }
 
-  if (hasAnyRice(keys) && (hasAnyChicken(keys) || keys.has("fish") || keys.has("tofu") || keys.has("beans_lentils") || keys.has("beef"))) {
+  if (hasAnyRice(keys) && (hasAnyChicken(keys) || keys.has("fish") || keys.has("prawn") || keys.has("tofu") || keys.has("beans_lentils") || keys.has("beef"))) {
     suggestions.push({
       id: "separate-rice-protein-plate",
       title: "Rice + Protein Side Plate",
@@ -791,7 +815,7 @@ export function summarizeMeal(items: MealBuilderItem[], mealType = "Breakfast"):
         summary.fruitCalories += item.calories;
       }
       if (
-        ["egg", "cheese", "yoghurt", "fresh_cow_milk", "pediasure_milk", "chicken", "chicken_thigh", "chicken_drumstick", "fish", "beef", "pork", "tofu", "beans_lentils"].includes(
+        ["egg", "cheese", "yoghurt", "fresh_cow_milk", "pediasure_milk", "chicken", "chicken_thigh", "chicken_drumstick", "fish", "prawn", "beef", "pork", "tofu", "beans_lentils"].includes(
           item.ingredientKey,
         )
       ) {
