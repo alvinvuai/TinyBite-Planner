@@ -2,6 +2,21 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  Cell,
+} from "recharts";
 
 type NutritionTotals = {
   protein: number;
@@ -57,6 +72,21 @@ function formatNumber(value: number, decimals = 1) {
   return Number(value.toFixed(decimals)).toString();
 }
 
+function formatChartDate(iso: string) {
+  const parts = iso.split("-");
+  if (parts.length !== 3) return iso;
+  const [, month, day] = parts;
+  return `${month}/${day}`;
+}
+
+const chartTooltipStyle = {
+  borderRadius: 8,
+  border: "1px solid #ead8e2",
+  fontSize: 12,
+  fontWeight: 700,
+  color: "#633d55",
+};
+
 function sumNutrition(records: ReportMealRecord[], key: keyof NutritionTotals) {
   return records.reduce((sum, record) => sum + record.nutritionConsumed[key], 0);
 }
@@ -96,6 +126,54 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
     ? filteredRecords.reduce((sum, record) => sum + record.completionPercent, 0) / filteredRecords.length
     : 0;
 
+  const dailySeries = useMemo(() => {
+    const map = new Map<string, { consumed: number; offered: number }>();
+    for (const record of filteredRecords) {
+      const cur = map.get(record.date) ?? { consumed: 0, offered: 0 };
+      cur.consumed += record.totalConsumedCalories;
+      cur.offered += record.totalMealCalories;
+      map.set(record.date, cur);
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, totals]) => ({
+        date,
+        dateLabel: formatChartDate(date),
+        consumed: totals.consumed,
+        offered: totals.offered,
+      }));
+  }, [filteredRecords]);
+
+  const completionByDay = useMemo(() => {
+    const map = new Map<string, { sum: number; count: number }>();
+    for (const record of filteredRecords) {
+      const cur = map.get(record.date) ?? { sum: 0, count: 0 };
+      cur.sum += record.completionPercent;
+      cur.count += 1;
+      map.set(record.date, cur);
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, v]) => ({
+        date,
+        dateLabel: formatChartDate(date),
+        avgCompletion: v.count ? Math.round(v.sum / v.count) : 0,
+      }));
+  }, [filteredRecords]);
+
+  const macroSlices = useMemo(() => {
+    const protein = sumNutrition(filteredRecords, "protein");
+    const carbs = sumNutrition(filteredRecords, "carbs");
+    const fat = sumNutrition(filteredRecords, "fat");
+    const total = protein + carbs + fat;
+    if (total < 0.001) return [];
+    return [
+      { name: "Protein", value: protein, color: "#9c456c" },
+      { name: "Carbs", value: carbs, color: "#c17a4a" },
+      { name: "Fat", value: fat, color: "#5a8f6e" },
+    ];
+  }, [filteredRecords]);
+
   return (
     <main className="min-h-screen bg-[linear-gradient(160deg,#fff9fc_0%,#fff0e2_48%,#f3ecff_100%)] px-4 py-6 text-[#47243d]">
       <div className="mx-auto max-w-7xl space-y-5">
@@ -110,13 +188,19 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
         </header>
 
         <section className="soft-card p-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="space-y-1">
-              <span className="text-xs font-black uppercase tracking-[0.08em] text-[#9c456c]">Range</span>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              <label
+                htmlFor="report-range-preset"
+                className="shrink-0 text-xs font-black uppercase tracking-[0.08em] text-[#9c456c]"
+              >
+                Range
+              </label>
               <select
+                id="report-range-preset"
                 value={preset}
                 onChange={(event) => setPreset(event.target.value as DatePreset)}
-                className="min-h-11 rounded-[8px] border border-[#ead8e2] bg-white px-3 text-sm font-bold text-[#633d55]"
+                className="min-h-11 min-w-[11rem] rounded-[8px] border border-[#ead8e2] bg-white px-3 text-sm font-bold text-[#633d55]"
               >
                 <option value="today">Today</option>
                 <option value="week">This week</option>
@@ -124,28 +208,40 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
                 <option value="custom">Custom range</option>
                 <option value="all">All time</option>
               </select>
-            </label>
+            </div>
 
             {preset === "custom" ? (
               <>
-                <label className="space-y-1">
-                  <span className="text-xs font-black uppercase tracking-[0.08em] text-[#9c456c]">Start</span>
+                <div className="flex min-w-0 flex-wrap items-center gap-3">
+                  <label
+                    htmlFor="report-range-start"
+                    className="shrink-0 text-xs font-black uppercase tracking-[0.08em] text-[#9c456c]"
+                  >
+                    Start
+                  </label>
                   <input
+                    id="report-range-start"
                     type="date"
                     value={customStart}
                     onChange={(event) => setCustomStart(event.target.value)}
                     className="min-h-11 rounded-[8px] border border-[#ead8e2] bg-white px-3 text-sm font-bold text-[#633d55]"
                   />
-                </label>
-                <label className="space-y-1">
-                  <span className="text-xs font-black uppercase tracking-[0.08em] text-[#9c456c]">End</span>
+                </div>
+                <div className="flex min-w-0 flex-wrap items-center gap-3">
+                  <label
+                    htmlFor="report-range-end"
+                    className="shrink-0 text-xs font-black uppercase tracking-[0.08em] text-[#9c456c]"
+                  >
+                    End
+                  </label>
                   <input
+                    id="report-range-end"
                     type="date"
                     value={customEnd}
                     onChange={(event) => setCustomEnd(event.target.value)}
                     className="min-h-11 rounded-[8px] border border-[#ead8e2] bg-white px-3 text-sm font-bold text-[#633d55]"
                   />
-                </label>
+                </div>
               </>
             ) : null}
           </div>
@@ -161,6 +257,103 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
           <Metric label="Carb (consumed)" value={`${formatNumber(sumNutrition(filteredRecords, "carbs"))} g`} />
           <Metric label="Fat (consumed)" value={`${formatNumber(sumNutrition(filteredRecords, "fat"))} g`} />
           <Metric label="Fibre (consumed)" value={`${formatNumber(sumNutrition(filteredRecords, "fiber"))} g`} />
+        </section>
+
+        <section className="grid gap-3 lg:grid-cols-2">
+          <div className="soft-card p-4">
+            <p className="text-sm font-black text-[#633d55]">Calories by day</p>
+            <p className="mt-1 text-xs font-semibold text-[#765066]">Consumed vs offered kcal, summed per calendar day.</p>
+            {dailySeries.length ? (
+              <div className="mt-4 h-[280px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dailySeries} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0dce7" />
+                    <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: "#765066", fontWeight: 600 }} />
+                    <YAxis tick={{ fontSize: 11, fill: "#765066", fontWeight: 600 }} width={44} />
+                    <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: "#633d55", fontWeight: 800 }} />
+                    <Legend wrapperStyle={{ fontSize: 12, fontWeight: 700, color: "#633d55" }} />
+                    <Bar name="Consumed kcal" dataKey="consumed" fill="#9c456c" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                    <Bar name="Offered kcal" dataKey="offered" fill="#e8b86d" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <p className="mt-4 text-sm font-semibold text-[#765066]">No day-level data in this range.</p>
+            )}
+          </div>
+
+          <div className="soft-card p-4">
+            <p className="text-sm font-black text-[#633d55]">Macros consumed</p>
+            <p className="mt-1 text-xs font-semibold text-[#765066]">Share of protein, carbs, and fat (grams) for the filter.</p>
+            {macroSlices.length ? (
+              <div className="mt-4 h-[280px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={macroSlices}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={56}
+                      outerRadius={96}
+                      paddingAngle={2}
+                    >
+                      {macroSlices.map((entry) => (
+                        <Cell key={entry.name} fill={entry.color} stroke="#fffafd" strokeWidth={2} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value) => {
+                        const n = typeof value === "number" ? value : Number(value);
+                        const grams = Number.isFinite(n) ? n : 0;
+                        return [`${formatNumber(grams)} g`, ""];
+                      }}
+                      contentStyle={chartTooltipStyle}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12, fontWeight: 700, color: "#633d55" }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <p className="mt-4 text-sm font-semibold text-[#765066]">No macro data in this range.</p>
+            )}
+          </div>
+        </section>
+
+        <section className="soft-card p-4">
+          <p className="text-sm font-black text-[#633d55]">Average meal completion by day</p>
+          <p className="mt-1 text-xs font-semibold text-[#765066]">Mean completion % across meals logged on each day.</p>
+          {completionByDay.length ? (
+            <div className="mt-4 h-[240px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={completionByDay} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0dce7" />
+                  <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: "#765066", fontWeight: 600 }} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "#765066", fontWeight: 600 }} width={36} />
+                  <Tooltip
+                    contentStyle={chartTooltipStyle}
+                    formatter={(value) => {
+                      const n = typeof value === "number" ? value : Number(value);
+                      const pct = Number.isFinite(n) ? n : 0;
+                      return [`${formatNumber(pct, 0)}%`, "Avg completion"];
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="avgCompletion"
+                    name="Avg completion %"
+                    stroke="#8a5422"
+                    strokeWidth={3}
+                    dot={{ r: 4, fill: "#8a5422", strokeWidth: 0 }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm font-semibold text-[#765066]">No completion trend in this range.</p>
+          )}
         </section>
 
         <section className="soft-card overflow-hidden">

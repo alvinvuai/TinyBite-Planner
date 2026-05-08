@@ -15,6 +15,7 @@
     "openai": "latest",
     "react": "latest",
     "react-dom": "latest",
+    "recharts": "^3.8.1",
     "zod": "latest"
   },
   "overrides": {
