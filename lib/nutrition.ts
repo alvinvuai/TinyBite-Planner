@@ -636,6 +636,28 @@ export function createMealBuilderItem(name: string): MealBuilderItem | null {
   };
 }
 
+export function createCustomMealBuilderItem(name: string, calories: number): MealBuilderItem | null {
+  const trimmedName = name.trim();
+  const roundedCalories = Math.round(calories);
+  if (!trimmedName || !Number.isFinite(roundedCalories) || roundedCalories <= 0) return null;
+
+  return {
+    id: `custom-${crypto.randomUUID()}`,
+    ingredientKey: `custom_${Date.now()}`,
+    name: trimmedName.slice(0, 100),
+    category: "treat",
+    suggestedAmount: 1,
+    suggestedUnit: "item",
+    suggestedGrams: 0,
+    suggestedCalories: roundedCalories,
+    amount: 1,
+    unit: "item",
+    grams: 0,
+    calories: roundedCalories,
+    note: "Custom item",
+  };
+}
+
 export function rebalanceSuggestedItems(items: MealBuilderItem[], mealType: string, resetAdjusted = false): MealBuilderItem[] {
   if (!items.length) return [];
   const targetCalories = mealTargets[mealType]?.calories ?? mealTargets.Breakfast.calories;

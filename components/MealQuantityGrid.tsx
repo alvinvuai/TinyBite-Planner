@@ -7,6 +7,7 @@ import {
   categoryStyles,
   convertMealBuilderItemUnit,
   convertSuggestedMealBuilderItemUnit,
+  createCustomMealBuilderItem,
   createMealBuilderItem,
   formatAmount,
   ingredientDefinitions,
@@ -48,24 +49,9 @@ export function MealQuantityGrid({ items, mealType, onChange }: MealQuantityGrid
     const calories = Number(customCalories);
     if (!name || !Number.isFinite(calories) || calories <= 0) return;
 
-    onChange([
-      ...items,
-      {
-        id: `custom-${crypto.randomUUID()}`,
-        ingredientKey: `custom_${Date.now()}`,
-        name,
-        category: "treat",
-        suggestedAmount: 1,
-        suggestedUnit: "item",
-        suggestedGrams: 0,
-        suggestedCalories: Math.round(calories),
-        amount: 1,
-        unit: "item",
-        grams: 0,
-        calories: Math.round(calories),
-        note: "Custom item",
-      },
-    ]);
+    const next = createCustomMealBuilderItem(name, calories);
+    if (!next) return;
+    onChange([...items, next]);
 
     setCustomName("");
     setCustomCalories("60");

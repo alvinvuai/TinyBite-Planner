@@ -11,6 +11,7 @@ import { SettingsPanel } from "@/components/SettingsPanel";
 import { SuggestedMeals } from "@/components/SuggestedMeals";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import {
+  createCustomMealBuilderItem,
   createMealBuilderItem,
   getAllowedIngredientDefinitions,
   isIngredientAllowedForMeal,
@@ -107,6 +108,9 @@ export function MealPlannerForm() {
   const [profile, setProfile] = useState<ChildProfile>(defaultProfile);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [textOpen, setTextOpen] = useState(false);
+  const [customFoodOpen, setCustomFoodOpen] = useState(false);
+  const [customFoodName, setCustomFoodName] = useState("");
+  const [customFoodCalories, setCustomFoodCalories] = useState("60");
   const [tipsOpen, setTipsOpen] = useState(false);
   const [targetsOpen, setTargetsOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
@@ -303,6 +307,17 @@ export function MealPlannerForm() {
     setTextOpen(false);
   }
 
+  function addCustomFoodFromHome() {
+    const next = createCustomMealBuilderItem(customFoodName, Number(customFoodCalories));
+    if (!next) return;
+    setMealItems((current) => [...current, next]);
+    setReview(null);
+    setSelectedMealId(null);
+    setCustomFoodOpen(false);
+    setCustomFoodName("");
+    setCustomFoodCalories("60");
+  }
+
   async function reviewMeal() {
     setLoading(true);
     setError("");
@@ -482,6 +497,9 @@ export function MealPlannerForm() {
             <CuteButton type="button" variant="secondary" onClick={() => setTextOpen(true)} className="min-h-10 px-4 py-2">
               Type foods
             </CuteButton>
+            <CuteButton type="button" variant="secondary" onClick={() => setCustomFoodOpen(true)} className="min-h-10 px-4 py-2">
+              Custom food
+            </CuteButton>
             <CuteButton type="button" variant="secondary" onClick={() => setTipsOpen(true)} className="min-h-10 px-4 py-2">
               Mealtime tips
             </CuteButton>
@@ -578,6 +596,34 @@ export function MealPlannerForm() {
           <div className="mt-3 flex justify-end">
             <CuteButton type="button" onClick={applyFreeText}>
               Add to planner
+            </CuteButton>
+          </div>
+        </Modal>
+      ) : null}
+
+      {customFoodOpen ? (
+        <Modal title="Add custom food" onClose={() => setCustomFoodOpen(false)}>
+          <div className="space-y-3">
+            <input
+              type="text"
+              value={customFoodName}
+              onChange={(event) => setCustomFoodName(event.currentTarget.value)}
+              placeholder="Food name"
+              className="min-h-12 w-full rounded-[8px] border border-white/80 bg-white/78 px-4 text-base font-semibold text-[#633d55] outline-none focus:border-[#ff8dbc]"
+            />
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={customFoodCalories}
+              onChange={(event) => setCustomFoodCalories(event.currentTarget.value)}
+              placeholder="Calories (kcal)"
+              className="min-h-12 w-full rounded-[8px] border border-white/80 bg-white/78 px-4 text-base font-semibold text-[#633d55] outline-none focus:border-[#ff8dbc]"
+            />
+          </div>
+          <div className="mt-3 flex justify-end">
+            <CuteButton type="button" onClick={addCustomFoodFromHome}>
+              Add to meal
             </CuteButton>
           </div>
         </Modal>
