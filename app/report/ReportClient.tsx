@@ -79,6 +79,19 @@ function formatChartDate(iso: string) {
   return `${month}/${day}`;
 }
 
+function dateKeyToDate(key: string) {
+  return new Date(`${key}T00:00:00`);
+}
+
+function daysInclusive(startKey: string, endKey: string) {
+  const start = dateKeyToDate(startKey);
+  const end = dateKeyToDate(endKey);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+  const ms = end.getTime() - start.getTime();
+  if (ms < 0) return 0;
+  return Math.floor(ms / 86400000) + 1;
+}
+
 const chartTooltipStyle = {
   borderRadius: 8,
   border: "1px solid #ead8e2",
@@ -173,6 +186,36 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
       { name: "Fat", value: fat, color: "#5a8f6e" },
     ];
   }, [filteredRecords]);
+
+  const periodDays = useMemo(() => {
+    if (!records.length) return 0;
+    const todayDate = new Date();
+    const todayKey = toDateKey(todayDate);
+    if (preset === "today") return 1;
+    if (preset === "week") return daysInclusive(toDateKey(startOfWeek(todayDate)), todayKey);
+    if (preset === "month") return daysInclusive(toDateKey(startOfMonth(todayDate)), todayKey);
+    if (preset === "custom") {
+      if (!customStart || !customEnd) return 0;
+      const start = customStart <= customEnd ? customStart : customEnd;
+      const end = customStart <= customEnd ? customEnd : customStart;
+      return daysInclusive(start, end);
+    }
+    if (!filteredRecords.length) return 0;
+    const dates = filteredRecords.map((record) => record.date).sort((a, b) => a.localeCompare(b));
+    return daysInclusive(dates[0], dates[dates.length - 1]);
+  }, [customEnd, customStart, filteredRecords, preset, records.length]);
+
+  const standardsData = useMemo(() => {
+    const daily = { calories: 1000, protein: 20, iron: 3, zinc: 3, calcium: 700 };
+    const targetMultiplier = Math.max(1, periodDays);
+    return [
+      { metric: "Calories (kcal)", consumed: totalConsumed, target: daily.calories * targetMultiplier },
+      { metric: "Protein (g)", consumed: sumNutrition(filteredRecords, "protein"), target: daily.protein * targetMultiplier },
+      { metric: "Iron (mg)", consumed: sumNutrition(filteredRecords, "iron"), target: daily.iron * targetMultiplier },
+      { metric: "Zinc (mg)", consumed: sumNutrition(filteredRecords, "zinc"), target: daily.zinc * targetMultiplier },
+      { metric: "Calcium (mg)", consumed: sumNutrition(filteredRecords, "calcium"), target: daily.calcium * targetMultiplier },
+    ];
+  }, [filteredRecords, periodDays, totalConsumed]);
 
   return (
     <main className="min-h-screen bg-[linear-gradient(160deg,#fff9fc_0%,#fff0e2_48%,#f3ecff_100%)] px-4 py-6 text-[#47243d]">
@@ -318,6 +361,27 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
             ) : (
               <p className="mt-4 text-sm font-semibold text-[#765066]">No macro data in this range.</p>
             )}
+          </div>
+        </section>
+
+        <section className="soft-card p-4">
+          <p className="text-sm font-black text-[#633d55]">Consumed vs standard target</p>
+          <p className="mt-1 text-xs font-semibold text-[#765066]">
+            Target baseline: 1000 kcal/day, protein 20 g/day, iron 3 mg/day, zinc 3 mg/day, calcium 700 mg/day.
+          </p>
+          <p className="mt-1 text-xs font-semibold text-[#765066]">Range multiplier: {Math.max(1, periodDays)} day(s).</p>
+          <div className="mt-4 h-[320px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={standardsData} margin={{ top: 8, right: 12, left: 8, bottom: 6 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0dce7" />
+                <XAxis dataKey="metric" tick={{ fontSize: 11, fill: "#765066", fontWeight: 600 }} />
+                <YAxis tick={{ fontSize: 11, fill: "#765066", fontWeight: 600 }} width={56} />
+                <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: "#633d55", fontWeight: 800 }} />
+                <Legend wrapperStyle={{ fontSize: 12, fontWeight: 700, color: "#633d55" }} />
+                <Bar name="Consumed" dataKey="consumed" fill="#9c456c" radius={[6, 6, 0, 0]} maxBarSize={40} />
+                <Bar name="Target" dataKey="target" fill="#8a5422" radius={[6, 6, 0, 0]} maxBarSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </section>
 

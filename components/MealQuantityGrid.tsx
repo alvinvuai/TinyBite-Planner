@@ -24,6 +24,8 @@ type MealQuantityGridProps = {
 
 export function MealQuantityGrid({ items, mealType, onChange }: MealQuantityGridProps) {
   const [extraKey, setExtraKey] = useState("beans_lentils");
+  const [customName, setCustomName] = useState("");
+  const [customCalories, setCustomCalories] = useState("60");
   const summary = summarizeMeal(items, mealType);
 
   function updateItem(id: string, next: MealBuilderItem) {
@@ -39,6 +41,34 @@ export function MealQuantityGrid({ items, mealType, onChange }: MealQuantityGrid
 
   function removeItem(id: string) {
     onChange(rebalanceSuggestedItems(items.filter((item) => item.id !== id), mealType));
+  }
+
+  function addCustomFood() {
+    const name = customName.trim();
+    const calories = Number(customCalories);
+    if (!name || !Number.isFinite(calories) || calories <= 0) return;
+
+    onChange([
+      ...items,
+      {
+        id: `custom-${crypto.randomUUID()}`,
+        ingredientKey: `custom_${Date.now()}`,
+        name,
+        category: "treat",
+        suggestedAmount: 1,
+        suggestedUnit: "item",
+        suggestedGrams: 0,
+        suggestedCalories: Math.round(calories),
+        amount: 1,
+        unit: "item",
+        grams: 0,
+        calories: Math.round(calories),
+        note: "Custom item",
+      },
+    ]);
+
+    setCustomName("");
+    setCustomCalories("60");
   }
 
   if (!items.length) {
@@ -72,7 +102,47 @@ export function MealQuantityGrid({ items, mealType, onChange }: MealQuantityGrid
           <div className="divide-y divide-[#f4dce6]">
             {items.map((item) => {
               const definition = ingredientDefinitions.find((definitionItem) => definitionItem.key === item.ingredientKey);
-              if (!definition) return null;
+              if (!definition) {
+                if (!item.ingredientKey.startsWith("custom_")) return null;
+                return (
+                  <div key={item.id} className="grid grid-cols-[0.9fr_0.72fr_1.1fr_0.45fr] items-start gap-2 px-3 py-3">
+                    <div className="min-w-0">
+                      <input
+                        type="text"
+                        value={item.name}
+                        onChange={(event) => updateItem(item.id, { ...item, name: event.currentTarget.value.slice(0, 100) })}
+                        className="h-8 w-full min-w-0 rounded-[8px] border border-[#f6cbdb] bg-white px-2 text-sm font-black text-[#633d55]"
+                        aria-label="Custom food name"
+                      />
+                      <button type="button" className="mt-2 text-[10px] font-black text-[#c35f8d]" onClick={() => removeItem(item.id)}>
+                        Remove
+                      </button>
+                    </div>
+                    <div className="min-w-0 text-xs font-semibold text-[#8a6679]">Custom item</div>
+                    <div className="grid min-w-0 gap-2">
+                      <div className="grid grid-cols-[auto_1fr] items-center gap-2">
+                        <span className="text-xs font-black text-[#633d55]">kcal</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={item.calories}
+                          onChange={(event) => {
+                            const nextCalories = Math.max(0, Math.round(Number(event.currentTarget.value || 0)));
+                            updateItem(item.id, { ...item, calories: nextCalories, suggestedCalories: nextCalories });
+                          }}
+                          className="h-8 min-w-0 rounded-[8px] border border-[#f6cbdb] bg-white px-2 text-sm font-black text-[#633d55]"
+                          aria-label={`${item.name} calories`}
+                        />
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-black text-[#8a5422]">{item.calories}</p>
+                      <p className="text-[11px] font-bold text-[#b48b61]">kcal</p>
+                    </div>
+                  </div>
+                );
+              }
               const unit = definition.units.find((unitItem) => unitItem.unit === item.unit) || definition.units[0];
               const suggestedUnit = definition.units.find((unitItem) => unitItem.unit === item.suggestedUnit) || definition.units[0];
               const style = categoryStyles[item.category];
@@ -159,6 +229,27 @@ export function MealQuantityGrid({ items, mealType, onChange }: MealQuantityGrid
           </select>
           <CuteButton type="button" variant="secondary" onClick={addExtra}>
             Add ingredient
+          </CuteButton>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-[1.2fr_0.7fr_auto]">
+          <input
+            type="text"
+            value={customName}
+            onChange={(event) => setCustomName(event.currentTarget.value)}
+            placeholder="Custom food name"
+            className="min-h-12 rounded-[8px] border border-white/80 bg-white/78 px-4 text-sm font-bold text-[#633d55]"
+          />
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={customCalories}
+            onChange={(event) => setCustomCalories(event.currentTarget.value)}
+            placeholder="kcal"
+            className="min-h-12 rounded-[8px] border border-white/80 bg-white/78 px-4 text-sm font-bold text-[#633d55]"
+          />
+          <CuteButton type="button" variant="secondary" onClick={addCustomFood}>
+            Add custom food
           </CuteButton>
         </div>
 

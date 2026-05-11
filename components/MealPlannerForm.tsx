@@ -195,7 +195,7 @@ export function MealPlannerForm() {
     setMealType(nextMealType);
     const allowedKeys = new Set(getAllowedIngredientDefinitions(nextMealType).map((ingredient) => ingredient.key));
     setSelectedIngredients((current) => current.filter((selected) => isIngredientAllowedForMeal(selected, nextMealType)));
-    setMealItems((current) => rebalanceSuggestedItems(current.filter((item) => allowedKeys.has(item.ingredientKey)), nextMealType));
+    setMealItems((current) => rebalanceSuggestedItems(current.filter((item) => allowedKeys.has(item.ingredientKey) || item.ingredientKey.startsWith("custom_")), nextMealType));
     setReview(null);
     setSelectedMealId(null);
   }
@@ -278,7 +278,11 @@ export function MealPlannerForm() {
     setReview(null);
     setSelectedMealId(null);
     setMealItems((current) => {
-      const kept = current.filter((item) => allowedSelected.some((selected) => createMealBuilderItem(selected)?.ingredientKey === item.ingredientKey));
+      const kept = current.filter(
+        (item) =>
+          item.ingredientKey.startsWith("custom_") ||
+          allowedSelected.some((selected) => createMealBuilderItem(selected)?.ingredientKey === item.ingredientKey),
+      );
       const existingKeys = new Set(kept.map((item) => item.ingredientKey));
       const added = allowedSelected
         .map((selected) => createMealBuilderItem(selected))
