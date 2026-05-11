@@ -28,6 +28,10 @@ export function MealQuantityGrid({ items, mealType, onChange }: MealQuantityGrid
   const [customName, setCustomName] = useState("");
   const [customCalories, setCustomCalories] = useState("60");
   const summary = summarizeMeal(items, mealType);
+  const totalCalories = items.reduce((sum, item) => {
+    const calories = Number(item.calories);
+    return sum + (Number.isFinite(calories) ? calories : 0);
+  }, 0);
 
   function updateItem(id: string, next: MealBuilderItem) {
     onChange(items.map((item) => (item.id === id ? next : item)));
@@ -75,7 +79,7 @@ export function MealQuantityGrid({ items, mealType, onChange }: MealQuantityGrid
               Suggested is fixed to the meal target. Adjusted is what she is offered.
             </p>
           </div>
-          <div className="rounded-full bg-[#fff0d7] px-3 py-2 text-xs font-black text-[#8a5422]">{summary.totalCalories} kcal</div>
+          <div className="rounded-full bg-[#fff0d7] px-3 py-2 text-xs font-black text-[#8a5422]">{Math.round(totalCalories)} kcal</div>
         </div>
 
         <div className="overflow-hidden rounded-[8px] border border-white/80 bg-white/62">
@@ -244,7 +248,7 @@ export function MealQuantityGrid({ items, mealType, onChange }: MealQuantityGrid
         </p>
       </div>
 
-      <NutritionDashboard summary={summary} mealType={mealType} />
+      <NutritionDashboard summary={{ ...summary, totalCalories: Math.round(totalCalories) }} mealType={mealType} />
     </section>
   );
 }

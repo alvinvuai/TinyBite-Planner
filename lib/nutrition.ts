@@ -819,11 +819,18 @@ export function summarizeMeal(items: MealBuilderItem[], mealType = "Breakfast"):
 
   return items.reduce<NutritionSummary>(
     (summary, item) => {
+      const itemCalories = Number(item.calories);
+      const safeCalories = Number.isFinite(itemCalories) ? itemCalories : 0;
+      const itemGrams = Number(item.grams);
+      const safeGrams = Number.isFinite(itemGrams) ? itemGrams : 0;
+
+      summary.totalCalories += safeCalories;
+      summary.totalGrams += safeGrams;
+      summary.categoryCalories[item.category] += safeCalories;
+
       const definition = ingredientDefinitions.find((definitionItem) => definitionItem.key === item.ingredientKey);
       if (!definition) return summary;
-      const factor = item.grams / 100;
-      summary.totalCalories += item.calories;
-      summary.totalGrams += item.grams;
+      const factor = safeGrams / 100;
       summary.macros.protein += definition.nutrientsPer100g.protein * factor;
       summary.macros.carbs += definition.nutrientsPer100g.carbs * factor;
       summary.macros.fat += definition.nutrientsPer100g.fat * factor;
@@ -832,9 +839,8 @@ export function summarizeMeal(items: MealBuilderItem[], mealType = "Breakfast"):
       summary.nutrients.zinc += definition.nutrientsPer100g.zinc * factor;
       summary.nutrients.calcium += definition.nutrientsPer100g.calcium * factor;
       summary.nutrients.omega3 += definition.nutrientsPer100g.omega3 * factor;
-      summary.categoryCalories[item.category] += item.calories;
       if (["banana", "mandarin", "grape", "kiwi", "plum", "prune", "pear"].includes(item.ingredientKey)) {
-        summary.fruitCalories += item.calories;
+        summary.fruitCalories += safeCalories;
       }
       if (
         ["egg", "cheese", "yoghurt", "fresh_cow_milk", "pediasure_milk", "chicken", "chicken_thigh", "chicken_drumstick", "fish", "prawn", "beef", "pork", "tofu", "beans_lentils"].includes(
