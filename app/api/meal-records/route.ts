@@ -25,6 +25,11 @@ const createMealRecordSchema = z.object({
   ingredients: z.array(ingredientSchema).min(1).max(40),
 });
 
+const updateMealRecordDateSchema = z.object({
+  id: z.string().uuid(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
 export async function GET() {
   const records = await getMealRecordStore().list();
   return NextResponse.json({ records });
@@ -69,4 +74,26 @@ export async function POST(request: Request) {
 
   const saved = await getMealRecordStore().add(record);
   return NextResponse.json({ record: saved }, { status: 201 });
+}
+
+export async function PATCH(request: Request) {
+  let rawInput: unknown;
+
+  try {
+    rawInput = await request.json();
+  } catch {
+    return NextResponse.json({ error: "BAD_REQUEST", message: "Meal record update was missing. Please try again." }, { status: 400 });
+  }
+
+  const validation = updateMealRecordDateSchema.safeParse(rawInput);
+  if (!validation.success) {
+    return NextResponse.json({ error: "BAD_REQUEST", message: "Please choose a valid saved meal record and date." }, { status: 400 });
+  }
+
+  const updated = await getMealRecordStore().updateDate(validation.data.id, validation.data.date);
+  if (!updated) {
+    return NextResponse.json({ error: "NOT_FOUND", message: "That saved meal record could not be found." }, { status: 404 });
+  }
+
+  return NextResponse.json({ record: updated });
 }

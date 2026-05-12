@@ -6,6 +6,7 @@ import type { MealRecord } from "@/types/mealRecord";
 export type MealRecordStore = {
   list: () => Promise<MealRecord[]>;
   add: (record: MealRecord) => Promise<MealRecord>;
+  updateDate: (id: string, date: string) => Promise<MealRecord | null>;
 };
 
 const dataDir = path.join(process.cwd(), "data");
@@ -31,6 +32,18 @@ class JsonMealRecordStore implements MealRecordStore {
     await mkdir(dataDir, { recursive: true });
     await writeFile(filePath, `${JSON.stringify(nextRecords, null, 2)}\n`, "utf8");
     return record;
+  }
+
+  async updateDate(id: string, date: string) {
+    const records = await this.list();
+    const index = records.findIndex((record) => record.id === id && record.user === "Dua");
+    if (index === -1) return null;
+
+    const updated = { ...records[index], date };
+    const nextRecords = records.map((record, recordIndex) => (recordIndex === index ? updated : record));
+    await mkdir(dataDir, { recursive: true });
+    await writeFile(filePath, `${JSON.stringify(nextRecords, null, 2)}\n`, "utf8");
+    return updated;
   }
 }
 
@@ -84,17 +97,7 @@ class NeonMealRecordStore implements MealRecordStore {
       LIMIT 1000
     `;
 
-    return rows.map((row) => ({
-      id: String(row.id),
-      user: "Dua" as const,
-      date: String(row.date),
-      mealName: String(row.meal_name),
-      completionPercent: Number(row.completion_percent),
-      totalMealCalories: Number(row.total_meal_calories),
-      totalConsumedCalories: Number(row.total_consumed_calories),
-      ingredients: Array.isArray(row.ingredients) ? row.ingredients : JSON.parse(String(row.ingredients || "[]")),
-      createdAt: String(row.created_at),
-    }));
+    return rows.map(toMealRecord);
   }
 
   async add(record: MealRecord) {
@@ -125,6 +128,42 @@ class NeonMealRecordStore implements MealRecordStore {
     `;
     return record;
   }
+
+  async updateDate(id: string, date: string) {
+    await this.ensureTable();
+    const rows = await this.sql`
+      UPDATE meal_records
+      SET date = ${date}::date
+      WHERE id = ${id}::uuid
+        AND user_name = 'Dua'
+      RETURNING
+        id::text,
+        user_name,
+        to_char(date, 'YYYY-MM-DD') AS date,
+        meal_name,
+        completion_percent,
+        total_meal_calories,
+        total_consumed_calories,
+        ingredients,
+        created_at::text
+    `;
+
+    return rows[0] ? toMealRecord(rows[0]) : null;
+  }
+}
+
+function toMealRecord(row: Record<string, unknown>): MealRecord {
+  return {
+    id: String(row.id),
+    user: "Dua",
+    date: String(row.date),
+    mealName: String(row.meal_name),
+    completionPercent: Number(row.completion_percent),
+    totalMealCalories: Number(row.total_meal_calories),
+    totalConsumedCalories: Number(row.total_consumed_calories),
+    ingredients: Array.isArray(row.ingredients) ? row.ingredients : JSON.parse(String(row.ingredients || "[]")),
+    createdAt: String(row.created_at),
+  };
 }
 
 let store: MealRecordStore | null = null;
@@ -162,6 +201,16 @@ class ResilientMealRecordStore implements MealRecordStore {
     } catch (error) {
       console.warn("Neon meal record save failed. Falling back to local JSON.", error);
       return this.fallback.add(record);
+    }
+  }
+
+  async updateDate(id: string, date: string) {
+    try {
+      const updated = await this.primary.updateDate(id, date);
+      return updated ?? this.fallback.updateDate(id, date);
+    } catch (error) {
+      console.warn("Neon meal record date update failed. Falling back to local JSON.", error);
+      return this.fallback.updateDate(id, date);
     }
   }
 }

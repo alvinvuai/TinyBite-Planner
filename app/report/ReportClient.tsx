@@ -49,6 +49,13 @@ type ReportMealRecord = {
 
 type DatePreset = "today" | "week" | "month" | "custom" | "all";
 
+type UpdateDateResponse = {
+  record?: {
+    date?: string;
+  };
+  message?: string;
+};
+
 function toDateKey(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -104,15 +111,24 @@ function sumNutrition(records: ReportMealRecord[], key: keyof NutritionTotals) {
   return records.reduce((sum, record) => sum + record.nutritionConsumed[key], 0);
 }
 
+function sortRecordsByDate(records: ReportMealRecord[]) {
+  return [...records].sort((a, b) => b.date.localeCompare(a.date));
+}
+
 export function ReportClient({ records, storageName }: { records: ReportMealRecord[]; storageName: string }) {
   const today = useMemo(() => toDateKey(new Date()), []);
-  const [preset, setPreset] = useState<DatePreset>("today");
+  const [reportRecords, setReportRecords] = useState(() => sortRecordsByDate(records));
+  const [preset, setPreset] = useState<DatePreset>("week");
   const [customStart, setCustomStart] = useState(today);
   const [customEnd, setCustomEnd] = useState(today);
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+  const [editDate, setEditDate] = useState(today);
+  const [savingDateId, setSavingDateId] = useState<string | null>(null);
+  const [editError, setEditError] = useState("");
 
   const filteredRecords = useMemo(() => {
-    if (!records.length) return [];
-    if (preset === "all") return records;
+    if (!reportRecords.length) return [];
+    if (preset === "all") return sortRecordsByDate(reportRecords);
 
     const todayDate = new Date();
     let startKey = "";
@@ -130,8 +146,8 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
       endKey = customStart <= customEnd ? customEnd : customStart;
     }
 
-    return records.filter((record) => record.date >= startKey && record.date <= endKey);
-  }, [customEnd, customStart, preset, records]);
+    return sortRecordsByDate(reportRecords.filter((record) => record.date >= startKey && record.date <= endKey));
+  }, [customEnd, customStart, preset, reportRecords]);
 
   const totalConsumed = filteredRecords.reduce((sum, record) => sum + record.totalConsumedCalories, 0);
   const totalMealCalories = filteredRecords.reduce((sum, record) => sum + record.totalMealCalories, 0);
@@ -188,7 +204,7 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
   }, [filteredRecords]);
 
   const periodDays = useMemo(() => {
-    if (!records.length) return 0;
+    if (!reportRecords.length) return 0;
     const todayDate = new Date();
     const todayKey = toDateKey(todayDate);
     if (preset === "today") return 1;
@@ -203,7 +219,7 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
     if (!filteredRecords.length) return 0;
     const dates = filteredRecords.map((record) => record.date).sort((a, b) => a.localeCompare(b));
     return daysInclusive(dates[0], dates[dates.length - 1]);
-  }, [customEnd, customStart, filteredRecords, preset, records.length]);
+  }, [customEnd, customStart, filteredRecords, preset, reportRecords.length]);
 
   const standardsData = useMemo(() => {
     const daily = { calories: 1000, protein: 20, iron: 3, zinc: 3, calcium: 700 };
@@ -216,6 +232,110 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
       { metric: "Calcium (mg)", consumed: sumNutrition(filteredRecords, "calcium"), target: daily.calcium * targetMultiplier },
     ];
   }, [filteredRecords, periodDays, totalConsumed]);
+
+  function startEditingDate(record: ReportMealRecord) {
+    setEditingRecordId(record.id);
+    setEditDate(record.date);
+    setEditError("");
+  }
+
+  function cancelEditingDate() {
+    setEditingRecordId(null);
+    setEditError("");
+  }
+
+  async function saveRecordDate(record: ReportMealRecord) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(editDate)) {
+      setEditError("Choose a valid date.");
+      return;
+    }
+
+    setSavingDateId(record.id);
+    setEditError("");
+
+    try {
+      const response = await fetch("/api/meal-records", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: record.id, date: editDate }),
+      });
+      const text = await response.text();
+      let data: UpdateDateResponse = {};
+      if (text) {
+        try {
+          data = JSON.parse(text) as UpdateDateResponse;
+        } catch {
+          data = {};
+        }
+      }
+
+      if (!response.ok) {
+        setEditError(data.message || "Date could not be updated.");
+        return;
+      }
+
+      const nextDate = data.record?.date || editDate;
+      setReportRecords((current) => sortRecordsByDate(current.map((item) => (item.id === record.id ? { ...item, date: nextDate } : item))));
+      setEditingRecordId(null);
+    } catch {
+      setEditError("Date could not be updated. Please try again.");
+    } finally {
+      setSavingDateId(null);
+    }
+  }
+
+  function renderDateEditor(record: ReportMealRecord, layout: "table" | "card") {
+    if (editingRecordId !== record.id) {
+      return (
+        <button
+          type="button"
+          onClick={() => startEditingDate(record)}
+          className={
+            layout === "card"
+              ? "pressable min-h-11 w-full rounded-full bg-[#633d55] px-4 py-2 text-sm font-black text-white shadow-sm"
+              : "pressable whitespace-nowrap rounded-full bg-[#633d55] px-4 py-2 text-xs font-black text-white shadow-sm"
+          }
+        >
+          Change date
+        </button>
+      );
+    }
+
+    return (
+      <div className={layout === "card" ? "space-y-3 rounded-[8px] border border-[#ead8e2] bg-[#fffafd] p-3" : "min-w-[12rem] space-y-2"}>
+        <label className="block text-xs font-black uppercase tracking-[0.08em] text-[#9c456c]" htmlFor={`record-date-${record.id}-${layout}`}>
+          Record date
+        </label>
+        <input
+          id={`record-date-${record.id}-${layout}`}
+          aria-label={`Date for ${record.mealName}`}
+          type="date"
+          value={editDate}
+          onChange={(event) => setEditDate(event.target.value)}
+          className="min-h-10 w-full rounded-[8px] border border-[#ead8e2] bg-white px-2 text-sm font-bold text-[#633d55]"
+        />
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => saveRecordDate(record)}
+            disabled={savingDateId === record.id}
+            className="pressable min-h-10 flex-1 whitespace-nowrap rounded-full bg-[#633d55] px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {savingDateId === record.id ? "Saving" : "Save"}
+          </button>
+          <button
+            type="button"
+            onClick={cancelEditingDate}
+            disabled={savingDateId === record.id}
+            className="pressable min-h-10 flex-1 rounded-full border border-[#e7ccd9] bg-white px-3 py-2 text-xs font-black text-[#633d55] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Cancel
+          </button>
+        </div>
+        {editError ? <p className="text-xs font-bold text-[#9c2f45]">{editError}</p> : null}
+      </div>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[linear-gradient(160deg,#fff9fc_0%,#fff0e2_48%,#f3ecff_100%)] px-4 py-6 text-[#47243d]">
@@ -424,13 +544,48 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
           <div className="border-b border-[#ead8e2] p-4">
             <p className="text-sm font-black text-[#633d55]">Saved meals for user Dua</p>
             <p className="mt-1 text-xs font-semibold text-[#765066]">
-              Per-meal nutrition is shown as offered and estimated consumed based on completion percentage.
+              Use Change date on any saved meal to fix a record logged on the wrong day.
             </p>
           </div>
 
           {filteredRecords.length ? (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
+            <>
+              <div className="divide-y divide-[#f0dce7] lg:hidden">
+                {filteredRecords.map((record) => (
+                  <article key={record.id} className="space-y-4 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-black uppercase tracking-[0.08em] text-[#9c456c]">{record.date}</p>
+                        <h2 className="mt-1 text-lg font-black text-[#633d55]">{record.mealName}</h2>
+                      </div>
+                      <div className="min-w-[9rem] flex-1 sm:max-w-[14rem]">{renderDateEditor(record, "card")}</div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <CompactMetric label="Done" value={`${record.completionPercent}%`} />
+                      <CompactMetric label="Meal" value={`${record.totalMealCalories}`} />
+                      <CompactMetric label="Ate" value={`${record.totalConsumedCalories}`} emphasis />
+                    </div>
+
+                    <details className="rounded-[8px] border border-[#ead8e2] bg-white/70">
+                      <summary className="cursor-pointer px-3 py-3 text-sm font-black text-[#633d55]">Nutrition offered / consumed</summary>
+                      <div className="border-t border-[#f0dce7] p-3">
+                        <NutritionSummary record={record} />
+                      </div>
+                    </details>
+
+                    <details className="rounded-[8px] border border-[#ead8e2] bg-white/70">
+                      <summary className="cursor-pointer px-3 py-3 text-sm font-black text-[#633d55]">Adjusted ingredients</summary>
+                      <div className="border-t border-[#f0dce7] p-3">
+                        <IngredientList record={record} />
+                      </div>
+                    </details>
+                  </article>
+                ))}
+              </div>
+
+              <div className="hidden overflow-x-auto lg:block">
+                <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
                 <thead className="bg-[#fff8fb] text-xs font-black uppercase tracking-[0.08em] text-[#9c456c]">
                   <tr>
                     <th className="px-4 py-3">Date</th>
@@ -440,6 +595,7 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
                     <th className="px-4 py-3">Consumed kcal</th>
                     <th className="px-4 py-3">Nutrition offered / consumed</th>
                     <th className="px-4 py-3">Adjusted ingredients</th>
+                    <th className="px-4 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f0dce7]">
@@ -452,55 +608,81 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
                       <td className="px-4 py-3 font-black text-[#8a5422]">{record.totalConsumedCalories}</td>
                       <td className="px-4 py-3">
                         <div className="rounded-[8px] border border-[#f0dce7] bg-white/70 p-2 text-xs leading-5">
-                          <p className="font-black text-[#633d55]">
-                            Protein {formatNumber(record.nutritionOffered.protein)}g / {formatNumber(record.nutritionConsumed.protein)}g
-                          </p>
-                          <p>
-                            Carbs {formatNumber(record.nutritionOffered.carbs)}g / {formatNumber(record.nutritionConsumed.carbs)}g
-                          </p>
-                          <p>
-                            Fat {formatNumber(record.nutritionOffered.fat)}g / {formatNumber(record.nutritionConsumed.fat)}g
-                          </p>
-                          <p>
-                            Fibre {formatNumber(record.nutritionOffered.fiber)}g / {formatNumber(record.nutritionConsumed.fiber)}g
-                          </p>
-                          <p>
-                            Iron {formatNumber(record.nutritionOffered.iron, 2)}mg / {formatNumber(record.nutritionConsumed.iron, 2)}mg
-                          </p>
-                          <p>
-                            Zinc {formatNumber(record.nutritionOffered.zinc, 2)}mg / {formatNumber(record.nutritionConsumed.zinc, 2)}mg
-                          </p>
-                          <p>
-                            Calcium {formatNumber(record.nutritionOffered.calcium, 1)}mg / {formatNumber(record.nutritionConsumed.calcium, 1)}mg
-                          </p>
-                          <p>
-                            Omega-3 {formatNumber(record.nutritionOffered.omega3, 1)}mg / {formatNumber(record.nutritionConsumed.omega3, 1)}mg
-                          </p>
+                          <NutritionSummary record={record} />
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <ul className="space-y-1">
-                          {record.ingredients.map((ingredient) => (
-                            <li key={`${record.id}-${ingredient.ingredientKey}`} className="text-[#765066]">
-                              <span className="font-black text-[#633d55]">{ingredient.name}</span>: {ingredient.amount} {ingredient.unit},{" "}
-                              {ingredient.calories} kcal
-                            </li>
-                          ))}
-                        </ul>
+                        <IngredientList record={record} />
+                      </td>
+                      <td className="px-4 py-3">
+                        {renderDateEditor(record, "table")}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           ) : (
             <div className="p-4 text-sm font-semibold leading-6 text-[#765066]">
-              No records in this date range yet. Try another filter or save a meal from the planner.
+              No records in this date range yet. Choose This week, This month, or All time to find a saved record and use Change date.
             </div>
           )}
         </section>
       </div>
     </main>
+  );
+}
+
+function CompactMetric({ label, value, emphasis = false }: { label: string; value: string; emphasis?: boolean }) {
+  return (
+    <div className="rounded-[8px] border border-[#ead8e2] bg-white/70 px-2 py-3">
+      <p className="text-[0.68rem] font-black uppercase tracking-[0.08em] text-[#9c456c]">{label}</p>
+      <p className={`mt-1 text-base font-black ${emphasis ? "text-[#8a5422]" : "text-[#633d55]"}`}>{value}</p>
+    </div>
+  );
+}
+
+function NutritionSummary({ record }: { record: ReportMealRecord }) {
+  return (
+    <div className="text-xs leading-5 text-[#5f4057]">
+      <p className="font-black text-[#633d55]">
+        Protein {formatNumber(record.nutritionOffered.protein)}g / {formatNumber(record.nutritionConsumed.protein)}g
+      </p>
+      <p>
+        Carbs {formatNumber(record.nutritionOffered.carbs)}g / {formatNumber(record.nutritionConsumed.carbs)}g
+      </p>
+      <p>
+        Fat {formatNumber(record.nutritionOffered.fat)}g / {formatNumber(record.nutritionConsumed.fat)}g
+      </p>
+      <p>
+        Fibre {formatNumber(record.nutritionOffered.fiber)}g / {formatNumber(record.nutritionConsumed.fiber)}g
+      </p>
+      <p>
+        Iron {formatNumber(record.nutritionOffered.iron, 2)}mg / {formatNumber(record.nutritionConsumed.iron, 2)}mg
+      </p>
+      <p>
+        Zinc {formatNumber(record.nutritionOffered.zinc, 2)}mg / {formatNumber(record.nutritionConsumed.zinc, 2)}mg
+      </p>
+      <p>
+        Calcium {formatNumber(record.nutritionOffered.calcium, 1)}mg / {formatNumber(record.nutritionConsumed.calcium, 1)}mg
+      </p>
+      <p>
+        Omega-3 {formatNumber(record.nutritionOffered.omega3, 1)}mg / {formatNumber(record.nutritionConsumed.omega3, 1)}mg
+      </p>
+    </div>
+  );
+}
+
+function IngredientList({ record }: { record: ReportMealRecord }) {
+  return (
+    <ul className="space-y-1">
+      {record.ingredients.map((ingredient) => (
+        <li key={`${record.id}-${ingredient.ingredientKey}`} className="text-sm text-[#765066]">
+          <span className="font-black text-[#633d55]">{ingredient.name}</span>: {ingredient.amount} {ingredient.unit}, {ingredient.calories} kcal
+        </li>
+      ))}
+    </ul>
   );
 }
 
