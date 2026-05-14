@@ -48,6 +48,12 @@ const foodIcons: Record<string, string> = {
   canola_oil: "🌼",
 };
 
+const foodImageSrc: Record<string, string> = {
+  plum: "/food/plum.svg",
+  vegetables: "/food/mixed-vegetables.svg",
+  spinach: "/food/spinach.svg",
+};
+
 type IngredientChipsProps = {
   mealType: string;
   selected: string[];
@@ -85,7 +91,7 @@ export function IngredientChips({ mealType, selected, onChange }: IngredientChip
                     name={ingredient.name}
                     category={ingredient.category}
                     icon={ingredient.icon || foodIcons[ingredient.key]}
-                    imageSrc={ingredient.imageSrc}
+                    imageSrc={ingredient.imageSrc || foodImageSrc[ingredient.key]}
                     selected={active}
                     color={style}
                     onToggle={() => toggle(ingredient.name)}
