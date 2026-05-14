@@ -24,6 +24,8 @@ export type IngredientDefinition = {
   name: string;
   aliases: string[];
   category: NutritionCategory;
+  icon?: string;
+  imageSrc?: string;
   caloriesPer100g: number;
   defaultAmount: number;
   defaultUnit: string;

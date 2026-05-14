@@ -265,6 +265,18 @@ export const ingredientDefinitions: IngredientDefinition[] = [
     note: "Serve ripe, peeled if skin is tough.",
   },
   {
+    key: "strawberry",
+    name: "Strawberry",
+    aliases: ["strawberry", "strawberries"],
+    category: "fruit",
+    caloriesPer100g: 32,
+    defaultAmount: 2,
+    defaultUnit: "strawberry",
+    units: [piece("strawberry", 12, 1), piece("slice", 3, 1), gramUnit(5)],
+    nutrientsPer100g: n({ protein: 0.7, carbs: 7.7, fat: 0.3, fiber: 2, iron: 0.4, zinc: 0.1, calcium: 16, omega3: 65 }),
+    note: "Remove the leafy top and cut into soft toddler-safe pieces.",
+  },
+  {
     key: "chicken",
     name: "Chicken breast",
     aliases: ["chicken", "chicken breast", "breast"],
@@ -347,6 +359,42 @@ export const ingredientDefinitions: IngredientDefinition[] = [
     units: [gramUnit(5), piece("strip", 12, 1), piece("minced spoon", 10, 1)],
     nutrientsPer100g: n({ protein: 27, fat: 14, iron: 0.9, zinc: 2.4, calcium: 19 }),
     note: "Serve very tender and low-salt.",
+  },
+  {
+    key: "beef_vege_soup",
+    name: "Beef and vege soup",
+    aliases: ["beef and vege soup", "beef and vegetable soup", "beef vege soup", "beef veg soup", "beef soup"],
+    category: "protein",
+    caloriesPer100g: 55,
+    defaultAmount: 100,
+    defaultUnit: "g",
+    units: [gramUnit(20), tbsp(15), piece("small bowl", 150, 0.25)],
+    nutrientsPer100g: n({ protein: 5, carbs: 5.5, fat: 1.8, fiber: 1.1, iron: 0.9, zinc: 1.3, calcium: 16 }),
+    note: "Homestyle low-salt estimate; serve tender meat and soft vegetables.",
+  },
+  {
+    key: "chicken_vege_soup",
+    name: "Chicken and vege soup",
+    aliases: ["chicken and vege soup", "chicken and vegetable soup", "chicken vege soup", "chicken veg soup", "chicken soup"],
+    category: "protein",
+    caloriesPer100g: 45,
+    defaultAmount: 100,
+    defaultUnit: "g",
+    units: [gramUnit(20), tbsp(15), piece("small bowl", 150, 0.25)],
+    nutrientsPer100g: n({ protein: 4.7, carbs: 4.8, fat: 1.2, fiber: 1, iron: 0.4, zinc: 0.5, calcium: 15, omega3: 8 }),
+    note: "Homestyle low-salt estimate; shred chicken finely and keep vegetables soft.",
+  },
+  {
+    key: "pork_vege_soup",
+    name: "Pork and vege soup",
+    aliases: ["pork and vege soup", "pork and vegetable soup", "pork vege soup", "pork veg soup", "pork vegesoup", "pork soup"],
+    category: "protein",
+    caloriesPer100g: 60,
+    defaultAmount: 100,
+    defaultUnit: "g",
+    units: [gramUnit(20), tbsp(15), piece("small bowl", 150, 0.25)],
+    nutrientsPer100g: n({ protein: 5.2, carbs: 4.8, fat: 2.4, fiber: 1, iron: 0.5, zinc: 0.9, calcium: 15 }),
+    note: "Homestyle low-salt estimate; serve tender pork and soft vegetables.",
   },
   {
     key: "tofu",
@@ -534,12 +582,13 @@ const lightSnackIngredientKeys = new Set([
   "plum",
   "prune",
   "pear",
+  "strawberry",
   "avocado",
   "bread",
   "biscuit",
 ]);
 
-const dessertIngredientKeys = new Set(["cheese", "yoghurt", "banana", "mandarin", "grape", "kiwi", "plum", "prune", "pear"]);
+const dessertIngredientKeys = new Set(["cheese", "yoghurt", "banana", "mandarin", "grape", "kiwi", "plum", "prune", "pear", "strawberry"]);
 const bedtimeIngredientKeys = new Set(["yoghurt", "fresh_cow_milk", "pediasure_milk"]);
 
 const mealCategoryWeights: Record<string, Partial<Record<NutritionCategory, number>>> = {
@@ -839,13 +888,29 @@ export function summarizeMeal(items: MealBuilderItem[], mealType = "Breakfast"):
       summary.nutrients.zinc += definition.nutrientsPer100g.zinc * factor;
       summary.nutrients.calcium += definition.nutrientsPer100g.calcium * factor;
       summary.nutrients.omega3 += definition.nutrientsPer100g.omega3 * factor;
-      if (["banana", "mandarin", "grape", "kiwi", "plum", "prune", "pear"].includes(item.ingredientKey)) {
+      if (["banana", "mandarin", "grape", "kiwi", "plum", "prune", "pear", "strawberry"].includes(item.ingredientKey)) {
         summary.fruitCalories += safeCalories;
       }
       if (
-        ["egg", "cheese", "yoghurt", "fresh_cow_milk", "pediasure_milk", "chicken", "chicken_thigh", "chicken_drumstick", "fish", "prawn", "beef", "pork", "tofu", "beans_lentils"].includes(
-          item.ingredientKey,
-        )
+        [
+          "egg",
+          "cheese",
+          "yoghurt",
+          "fresh_cow_milk",
+          "pediasure_milk",
+          "chicken",
+          "chicken_thigh",
+          "chicken_drumstick",
+          "fish",
+          "prawn",
+          "beef",
+          "pork",
+          "beef_vege_soup",
+          "chicken_vege_soup",
+          "pork_vege_soup",
+          "tofu",
+          "beans_lentils",
+        ].includes(item.ingredientKey)
       ) {
         summary.proteinItems.push(item);
       }
