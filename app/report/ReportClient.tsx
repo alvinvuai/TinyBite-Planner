@@ -11,6 +11,7 @@ import {
   LineChart,
   Pie,
   PieChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -48,12 +49,24 @@ type ReportMealRecord = {
 };
 
 type DatePreset = "today" | "week" | "month" | "custom" | "all";
+type RecordPreset = "all" | "today" | "yesterday" | "week" | "last_week" | "month";
 
 type UpdateDateResponse = {
   record?: {
     date?: string;
   };
   message?: string;
+};
+
+type StandardProgress = {
+  metric: string;
+  unit: string;
+  consumed: number;
+  target: number;
+  percent: number;
+  chartPercent: number;
+  consumedLabel: string;
+  targetLabel: string;
 };
 
 function toDateKey(date: Date) {
@@ -107,12 +120,44 @@ const chartTooltipStyle = {
   color: "#633d55",
 };
 
+const recordsPerPage = 10;
+
 function sumNutrition(records: ReportMealRecord[], key: keyof NutritionTotals) {
   return records.reduce((sum, record) => sum + record.nutritionConsumed[key], 0);
 }
 
 function sortRecordsByDate(records: ReportMealRecord[]) {
   return [...records].sort((a, b) => b.date.localeCompare(a.date));
+}
+
+function filterRecordsByPreset(records: ReportMealRecord[], preset: RecordPreset) {
+  if (preset === "all") return sortRecordsByDate(records);
+
+  const todayDate = new Date();
+  const todayKey = toDateKey(todayDate);
+  let startKey = todayKey;
+  let endKey = todayKey;
+
+  if (preset === "yesterday") {
+    const yesterday = new Date(todayDate);
+    yesterday.setDate(yesterday.getDate() - 1);
+    startKey = toDateKey(yesterday);
+    endKey = startKey;
+  } else if (preset === "week") {
+    startKey = toDateKey(startOfWeek(todayDate));
+  } else if (preset === "last_week") {
+    const thisWeekStart = startOfWeek(todayDate);
+    const lastWeekStart = new Date(thisWeekStart);
+    lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+    const lastWeekEnd = new Date(thisWeekStart);
+    lastWeekEnd.setDate(lastWeekEnd.getDate() - 1);
+    startKey = toDateKey(lastWeekStart);
+    endKey = toDateKey(lastWeekEnd);
+  } else if (preset === "month") {
+    startKey = toDateKey(startOfMonth(todayDate));
+  }
+
+  return sortRecordsByDate(records.filter((record) => record.date >= startKey && record.date <= endKey));
 }
 
 export function ReportClient({ records, storageName }: { records: ReportMealRecord[]; storageName: string }) {
@@ -125,6 +170,9 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
   const [editDate, setEditDate] = useState(today);
   const [savingDateId, setSavingDateId] = useState<string | null>(null);
   const [editError, setEditError] = useState("");
+  const [showRecords, setShowRecords] = useState(false);
+  const [recordPreset, setRecordPreset] = useState<RecordPreset>("all");
+  const [recordPage, setRecordPage] = useState(1);
 
   const filteredRecords = useMemo(() => {
     if (!reportRecords.length) return [];
@@ -222,16 +270,37 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
   }, [customEnd, customStart, filteredRecords, preset, reportRecords.length]);
 
   const standardsData = useMemo(() => {
-    const daily = { calories: 1000, protein: 20, iron: 3, zinc: 3, calcium: 700 };
-    const targetMultiplier = Math.max(1, periodDays);
-    return [
-      { metric: "Calories (kcal)", consumed: totalConsumed, target: daily.calories * targetMultiplier },
-      { metric: "Protein (g)", consumed: sumNutrition(filteredRecords, "protein"), target: daily.protein * targetMultiplier },
-      { metric: "Iron (mg)", consumed: sumNutrition(filteredRecords, "iron"), target: daily.iron * targetMultiplier },
-      { metric: "Zinc (mg)", consumed: sumNutrition(filteredRecords, "zinc"), target: daily.zinc * targetMultiplier },
-      { metric: "Calcium (mg)", consumed: sumNutrition(filteredRecords, "calcium"), target: daily.calcium * targetMultiplier },
+    const daily = [
+      { metric: "Calories", unit: "kcal", consumed: totalConsumed, target: 1000, decimals: 0 },
+      { metric: "Protein", unit: "g", consumed: sumNutrition(filteredRecords, "protein"), target: 20, decimals: 1 },
+      { metric: "Iron", unit: "mg", consumed: sumNutrition(filteredRecords, "iron"), target: 3, decimals: 2 },
+      { metric: "Zinc", unit: "mg", consumed: sumNutrition(filteredRecords, "zinc"), target: 3, decimals: 2 },
+      { metric: "Calcium", unit: "mg", consumed: sumNutrition(filteredRecords, "calcium"), target: 700, decimals: 1 },
     ];
+    const targetMultiplier = Math.max(1, periodDays);
+    return daily.map((item): StandardProgress => {
+      const target = item.target * targetMultiplier;
+      const percent = target > 0 ? (item.consumed / target) * 100 : 0;
+      return {
+        metric: item.metric,
+        unit: item.unit,
+        consumed: item.consumed,
+        target,
+        percent,
+        chartPercent: Math.min(130, percent),
+        consumedLabel: `${formatNumber(item.consumed, item.decimals)} ${item.unit}`,
+        targetLabel: `${formatNumber(target, item.decimals)} ${item.unit}`,
+      };
+    });
   }, [filteredRecords, periodDays, totalConsumed]);
+
+  const recordListRecords = useMemo(() => filterRecordsByPreset(reportRecords, recordPreset), [recordPreset, reportRecords]);
+  const recordPageCount = Math.max(1, Math.ceil(recordListRecords.length / recordsPerPage));
+  const safeRecordPage = Math.min(recordPage, recordPageCount);
+  const paginatedRecords = useMemo(() => {
+    const start = (safeRecordPage - 1) * recordsPerPage;
+    return recordListRecords.slice(start, start + recordsPerPage);
+  }, [recordListRecords, safeRecordPage]);
 
   function startEditingDate(record: ReportMealRecord) {
     setEditingRecordId(record.id);
@@ -489,19 +558,43 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
           <p className="mt-1 text-xs font-semibold text-[#765066]">
             Target baseline: 1000 kcal/day, protein 20 g/day, iron 3 mg/day, zinc 3 mg/day, calcium 700 mg/day.
           </p>
-          <p className="mt-1 text-xs font-semibold text-[#765066]">Range multiplier: {Math.max(1, periodDays)} day(s).</p>
+          <p className="mt-1 text-xs font-semibold text-[#765066]">
+            Range multiplier: {Math.max(1, periodDays)} day(s). Bars show percent of target so small-unit nutrients stay readable.
+          </p>
           <div className="mt-4 h-[320px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={standardsData} margin={{ top: 8, right: 12, left: 8, bottom: 6 }}>
+              <BarChart data={standardsData} layout="vertical" margin={{ top: 8, right: 18, left: 8, bottom: 6 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0dce7" />
-                <XAxis dataKey="metric" tick={{ fontSize: 11, fill: "#765066", fontWeight: 600 }} />
-                <YAxis tick={{ fontSize: 11, fill: "#765066", fontWeight: 600 }} width={56} />
-                <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: "#633d55", fontWeight: 800 }} />
-                <Legend wrapperStyle={{ fontSize: 12, fontWeight: 700, color: "#633d55" }} />
-                <Bar name="Consumed" dataKey="consumed" fill="#9c456c" radius={[6, 6, 0, 0]} maxBarSize={40} />
-                <Bar name="Target" dataKey="target" fill="#8a5422" radius={[6, 6, 0, 0]} maxBarSize={40} />
+                <XAxis
+                  type="number"
+                  domain={[0, 130]}
+                  tickFormatter={(value) => `${value}%`}
+                  tick={{ fontSize: 11, fill: "#765066", fontWeight: 600 }}
+                />
+                <YAxis dataKey="metric" type="category" tick={{ fontSize: 12, fill: "#633d55", fontWeight: 800 }} width={86} />
+                <Tooltip
+                  contentStyle={chartTooltipStyle}
+                  labelStyle={{ color: "#633d55", fontWeight: 800 }}
+                  formatter={(_value, _name, props) => {
+                    const item = props.payload as StandardProgress;
+                    return [`${item.consumedLabel} of ${item.targetLabel} (${formatNumber(item.percent, 0)}%)`, "Consumed"];
+                  }}
+                />
+                <ReferenceLine x={100} stroke="#8a5422" strokeDasharray="4 4" label={{ value: "Target", fill: "#8a5422", fontSize: 11, fontWeight: 800 }} />
+                <Bar name="Consumed percent of target" dataKey="chartPercent" fill="#9c456c" radius={[0, 8, 8, 0]} maxBarSize={28} />
               </BarChart>
             </ResponsiveContainer>
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {standardsData.map((item) => (
+              <div key={item.metric} className="rounded-[8px] border border-[#ead8e2] bg-white/70 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.08em] text-[#9c456c]">{item.metric}</p>
+                <p className="mt-1 text-lg font-black text-[#633d55]">{formatNumber(item.percent, 0)}%</p>
+                <p className="mt-1 text-xs font-bold text-[#765066]">
+                  {item.consumedLabel} / {item.targetLabel}
+                </p>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -541,17 +634,67 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
         </section>
 
         <section className="soft-card overflow-hidden">
-          <div className="border-b border-[#ead8e2] p-4">
-            <p className="text-sm font-black text-[#633d55]">Saved meals for user Dua</p>
-            <p className="mt-1 text-xs font-semibold text-[#765066]">
-              Use Change date on any saved meal to fix a record logged on the wrong day.
-            </p>
+          <div className={`${showRecords ? "border-b border-[#ead8e2]" : ""} p-4`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-black text-[#633d55]">Saved meals for user Dua</p>
+                <p className="mt-1 text-xs font-semibold text-[#765066]">
+                  Records are hidden by default. Open them when you need to review or change a saved date.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRecords((current) => !current);
+                  setRecordPage(1);
+                  setEditingRecordId(null);
+                  setEditError("");
+                }}
+                className="pressable min-h-11 rounded-full bg-[#633d55] px-5 py-2 text-sm font-black text-white shadow-sm"
+                aria-expanded={showRecords}
+              >
+                {showRecords ? "Hide records" : "All records"}
+              </button>
+            </div>
           </div>
 
-          {filteredRecords.length ? (
+          {showRecords ? (
             <>
+              <div className="border-b border-[#ead8e2] bg-[#fff8fb] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex min-w-0 flex-wrap items-center gap-3">
+                    <label htmlFor="record-list-filter" className="shrink-0 text-xs font-black uppercase tracking-[0.08em] text-[#9c456c]">
+                      Record filter
+                    </label>
+                    <select
+                      id="record-list-filter"
+                      value={recordPreset}
+                      onChange={(event) => {
+                        setRecordPreset(event.target.value as RecordPreset);
+                        setRecordPage(1);
+                        setEditingRecordId(null);
+                        setEditError("");
+                      }}
+                      className="min-h-11 min-w-[11rem] rounded-[8px] border border-[#ead8e2] bg-white px-3 text-sm font-bold text-[#633d55]"
+                    >
+                      <option value="all">All records</option>
+                      <option value="today">Today</option>
+                      <option value="yesterday">Yesterday</option>
+                      <option value="week">This week</option>
+                      <option value="last_week">Last week</option>
+                      <option value="month">This month</option>
+                    </select>
+                  </div>
+                  <p className="text-xs font-bold text-[#765066]">
+                    {recordListRecords.length} record(s), page {safeRecordPage} of {recordPageCount}
+                  </p>
+                </div>
+              </div>
+
+              {paginatedRecords.length ? (
+                <>
               <div className="divide-y divide-[#f0dce7] lg:hidden">
-                {filteredRecords.map((record) => (
+                {paginatedRecords.map((record) => (
                   <article key={record.id} className="space-y-4 p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -599,7 +742,7 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f0dce7]">
-                  {filteredRecords.map((record) => (
+                  {paginatedRecords.map((record) => (
                     <tr key={record.id} className="align-top">
                       <td className="px-4 py-3 font-bold text-[#633d55]">{record.date}</td>
                       <td className="px-4 py-3 font-bold text-[#633d55]">{record.mealName}</td>
@@ -622,15 +765,48 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
                 </tbody>
               </table>
               </div>
+              <RecordPagination page={safeRecordPage} pageCount={recordPageCount} onPageChange={setRecordPage} />
+                </>
+              ) : (
+                <div className="p-4 text-sm font-semibold leading-6 text-[#765066]">
+                  No records for this filter. Try All records or another date range.
+                </div>
+              )}
             </>
-          ) : (
-            <div className="p-4 text-sm font-semibold leading-6 text-[#765066]">
-              No records in this date range yet. Choose This week, This month, or All time to find a saved record and use Change date.
-            </div>
-          )}
+          ) : null}
         </section>
       </div>
     </main>
+  );
+}
+
+function RecordPagination({ page, pageCount, onPageChange }: { page: number; pageCount: number; onPageChange: (page: number) => void }) {
+  if (pageCount <= 1) return null;
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#ead8e2] bg-[#fff8fb] p-4">
+      <p className="text-xs font-black uppercase tracking-[0.08em] text-[#9c456c]">
+        Page {page} of {pageCount}
+      </p>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => onPageChange(Math.max(1, page - 1))}
+          disabled={page <= 1}
+          className="pressable min-h-10 rounded-full border border-[#e7ccd9] bg-white px-4 py-2 text-xs font-black text-[#633d55] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Previous
+        </button>
+        <button
+          type="button"
+          onClick={() => onPageChange(Math.min(pageCount, page + 1))}
+          disabled={page >= pageCount}
+          className="pressable min-h-10 rounded-full bg-[#633d55] px-4 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Next
+        </button>
+      </div>
+    </div>
   );
 }
 

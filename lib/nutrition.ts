@@ -145,6 +145,18 @@ export const ingredientDefinitions: IngredientDefinition[] = [
     note: "Cheddar-style cheese estimate; check packaging for exact calories.",
   },
   {
+    key: "laughing_cow_cheese",
+    name: "The Laughing Cow cheese wedge",
+    aliases: ["laughing cow", "the laughing cow", "laughing cow cheese", "laughing cow wedge", "cheese wedge"],
+    category: "dairy",
+    caloriesPer100g: 170,
+    defaultAmount: 1,
+    defaultUnit: "wedge",
+    units: [piece("wedge", 16, 0.5), gramUnit(2)],
+    nutrientsPer100g: n({ protein: 8.1, carbs: 6.3, fat: 12.5, calcium: 250, zinc: 0.9 }),
+    note: "Processed cheese wedge estimate; check the packet for exact nutrition and keep portions small.",
+  },
+  {
     key: "yoghurt",
     name: "Full-fat yoghurt",
     aliases: ["yoghurt", "yogurt"],
@@ -433,6 +445,18 @@ export const ingredientDefinitions: IngredientDefinition[] = [
     note: "Good energy-dense soft finger food.",
   },
   {
+    key: "sesame_seed",
+    name: "Sesame seed",
+    aliases: ["sesame", "sesame seed", "sesame seeds"],
+    category: "fat",
+    caloriesPer100g: 573,
+    defaultAmount: 0.5,
+    defaultUnit: "tsp",
+    units: [tsp(3), gramUnit(1), piece("small sprinkle", 1, 1)],
+    nutrientsPer100g: n({ protein: 17.7, carbs: 23.4, fat: 49.7, fiber: 11.8, iron: 14.6, zinc: 7.8, calcium: 975, omega3: 376 }),
+    note: "Use as a small sprinkle, ideally ground or mixed through moist food; avoid thick spoonfuls of sesame paste.",
+  },
+  {
     key: "bread",
     name: "Bread",
     aliases: ["bread"],
@@ -572,6 +596,7 @@ const mainMealTypes = new Set(["Breakfast", "Lunch", "Dinner", "Small portion ea
 
 const lightSnackIngredientKeys = new Set([
   "cheese",
+  "laughing_cow_cheese",
   "yoghurt",
   "fresh_cow_milk",
   "pediasure_milk",
@@ -584,11 +609,24 @@ const lightSnackIngredientKeys = new Set([
   "pear",
   "strawberry",
   "avocado",
+  "sesame_seed",
   "bread",
   "biscuit",
 ]);
 
-const dessertIngredientKeys = new Set(["cheese", "yoghurt", "banana", "mandarin", "grape", "kiwi", "plum", "prune", "pear", "strawberry"]);
+const dessertIngredientKeys = new Set([
+  "cheese",
+  "laughing_cow_cheese",
+  "yoghurt",
+  "banana",
+  "mandarin",
+  "grape",
+  "kiwi",
+  "plum",
+  "prune",
+  "pear",
+  "strawberry",
+]);
 const bedtimeIngredientKeys = new Set(["yoghurt", "fresh_cow_milk", "pediasure_milk"]);
 
 const mealCategoryWeights: Record<string, Partial<Record<NutritionCategory, number>>> = {
@@ -611,6 +649,10 @@ function hasAnyRice(keys: Set<string>) {
 
 function hasAnyOil(keys: Set<string>) {
   return keys.has("olive_oil") || keys.has("avocado_oil") || keys.has("canola_oil");
+}
+
+function hasAnyCheese(keys: Set<string>) {
+  return keys.has("cheese") || keys.has("laughing_cow_cheese");
 }
 
 function hasAnyChicken(keys: Set<string>) {
@@ -802,19 +844,19 @@ export function suggestMeals(ingredients: MealBuilderItem[], mealType: string): 
       title: "Soft Egg Rice Fingers",
       subtitle: "Rice patties with egg kept soft and easy to hold.",
       mealType: type,
-      ingredients: ["Rice", "Egg", keys.has("cheese") ? "Cheese" : "Butter or oil"],
+      ingredients: ["Rice", "Egg", hasAnyCheese(keys) ? "Cheese" : "Butter or oil"],
       steps: ["Mix a small amount of rice with egg.", "Cook as soft mini patties.", "Let cool and cut into finger strips."],
       safety: "Serve soft and cool enough. Keep some plain rice separate if mixed protein is rejected.",
     });
   }
 
-  if (keys.has("egg") && (keys.has("cheese") || hasAnyOil(keys) || keys.has("butter"))) {
+  if (keys.has("egg") && (hasAnyCheese(keys) || hasAnyOil(keys) || keys.has("butter"))) {
     suggestions.push({
       id: "mini-omelette-strips",
       title: "Mini Omelette Strips",
       subtitle: "A soft protein-first finger food with a little energy-rich fat.",
       mealType: type,
-      ingredients: ["Egg", keys.has("cheese") ? "Cheese" : "Yoghurt", hasAnyOil(keys) ? "Oil" : "Butter"],
+      ingredients: ["Egg", hasAnyCheese(keys) ? "Cheese" : "Yoghurt", hasAnyOil(keys) ? "Oil" : "Butter"],
       steps: ["Whisk egg with cheese if using.", "Cook gently in a little fat.", "Slice into soft strips."],
       safety: "Cook egg fully and cut into toddler-safe strips.",
     });
@@ -895,6 +937,7 @@ export function summarizeMeal(items: MealBuilderItem[], mealType = "Breakfast"):
         [
           "egg",
           "cheese",
+          "laughing_cow_cheese",
           "yoghurt",
           "fresh_cow_milk",
           "pediasure_milk",
