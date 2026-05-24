@@ -35,6 +35,7 @@ const foodIcons: Record<string, string> = {
   tofu: "⬜",
   beans_lentils: "🫘",
   avocado: "🥑",
+  peanut_butter: "🥜",
   bread: "🍞",
   biscuit: "🍪",
   vegetables: "🥦",

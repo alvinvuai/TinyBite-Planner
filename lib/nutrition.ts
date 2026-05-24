@@ -457,6 +457,18 @@ export const ingredientDefinitions: IngredientDefinition[] = [
     note: "Use as a small sprinkle, ideally ground or mixed through moist food; avoid thick spoonfuls of sesame paste.",
   },
   {
+    key: "peanut_butter",
+    name: "Peanut butter",
+    aliases: ["peanut butter", "smooth peanut butter", "nut butter"],
+    category: "fat",
+    caloriesPer100g: 588,
+    defaultAmount: 0.5,
+    defaultUnit: "tsp",
+    units: [tsp(5.3), tbsp(16), gramUnit(1)],
+    nutrientsPer100g: n({ protein: 22.2, carbs: 22.3, fat: 51.4, fiber: 5, iron: 1.7, zinc: 2.5, calcium: 49, omega3: 74 }),
+    note: "Use smooth peanut butter only as a thin spread or mixed through moist food; avoid thick spoonfuls.",
+  },
+  {
     key: "bread",
     name: "Bread",
     aliases: ["bread"],
@@ -610,6 +622,7 @@ const lightSnackIngredientKeys = new Set([
   "strawberry",
   "avocado",
   "sesame_seed",
+  "peanut_butter",
   "bread",
   "biscuit",
 ]);

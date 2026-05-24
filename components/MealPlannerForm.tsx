@@ -124,6 +124,7 @@ export function MealPlannerForm() {
   const [saving, setSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState("");
   const [saveToastOpen, setSaveToastOpen] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const [mealSessions, setMealSessions] = useState<MealDraftSession[]>(() => [createInitialDraft()]);
   const [activeSessionId, setActiveSessionId] = useState(defaultDraftId);
   const [sessionsReady, setSessionsReady] = useState(false);
@@ -162,6 +163,16 @@ export function MealPlannerForm() {
     const timer = window.setTimeout(() => setSaveToastOpen(false), 2600);
     return () => window.clearTimeout(timer);
   }, [saveToastOpen]);
+
+  useEffect(() => {
+    function updateBackToTopVisibility() {
+      setShowBackToTop(window.scrollY > 520);
+    }
+
+    updateBackToTopVisibility();
+    window.addEventListener("scroll", updateBackToTopVisibility, { passive: true });
+    return () => window.removeEventListener("scroll", updateBackToTopVisibility);
+  }, []);
 
   useEffect(() => {
     if (!sessionsReady) return;
@@ -403,9 +414,25 @@ export function MealPlannerForm() {
     }
   }
 
+  function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   return (
     <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 pb-10 pt-5 sm:px-6">
       <VoiceRecorder onTranscript={addTranscript} disabled={loading} floating />
+
+      {showBackToTop ? (
+        <button
+          type="button"
+          aria-label="Scroll to top"
+          title="Scroll to top"
+          onClick={scrollToTop}
+          className="pressable fixed bottom-5 right-4 z-40 grid h-12 w-12 place-items-center rounded-full border border-[#e7ccd9] bg-[#fffafd] text-2xl font-black leading-none text-[#5e3752] shadow-[0_12px_26px_rgba(126,70,101,0.18)] sm:bottom-6 sm:right-6"
+        >
+          ↑
+        </button>
+      ) : null}
 
       {saveToastOpen ? (
         <div className="pointer-events-none fixed inset-x-3 top-20 z-[70] flex justify-center sm:top-6">
