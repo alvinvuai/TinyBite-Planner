@@ -9,64 +9,219 @@ type VoiceRecorderProps = {
   floating?: boolean;
 };
 
+type VoiceSupportMode = "checking" | "speech" | "recorder" | "none";
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onend: (() => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  abort: () => void;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionEventLike = {
+  resultIndex: number;
+  results: ArrayLike<{
+    isFinal: boolean;
+    0: {
+      transcript: string;
+    };
+  }>;
+};
+
+function getSpeechRecognitionConstructor() {
+  const browserWindow = window as Window & {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  };
+  return browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition;
+}
+
+function getPreferredAudioMimeType() {
+  if (typeof MediaRecorder === "undefined" || !("isTypeSupported" in MediaRecorder)) return "";
+  return ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"].find((type) => MediaRecorder.isTypeSupported(type)) || "";
+}
+
+function extensionForMimeType(type: string) {
+  if (type.includes("mp4")) return "m4a";
+  if (type.includes("mpeg")) return "mp3";
+  if (type.includes("ogg")) return "ogg";
+  if (type.includes("wav")) return "wav";
+  return "webm";
+}
+
 export function VoiceRecorder({ onTranscript, disabled = false, floating = false }: VoiceRecorderProps) {
-  const [supported, setSupported] = useState(false);
+  const [supportMode, setSupportMode] = useState<VoiceSupportMode>("checking");
   const [recording, setRecording] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const speechRef = useRef<SpeechRecognitionLike | null>(null);
 
   useEffect(() => {
     queueMicrotask(() => {
-      setSupported("MediaRecorder" in window && Boolean(navigator.mediaDevices));
+      const hasSpeechRecognition = Boolean(getSpeechRecognitionConstructor());
+      const hasRecorder = "MediaRecorder" in window && Boolean(navigator.mediaDevices?.getUserMedia);
+      setSupportMode(hasSpeechRecognition ? "speech" : hasRecorder ? "recorder" : "none");
     });
+
+    return () => {
+      speechRef.current?.abort();
+      recorderRef.current?.stop();
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
   }, []);
 
   async function start() {
     setMessage("");
+    if (supportMode === "speech") {
+      startBrowserSpeechRecognition();
+      return;
+    }
+
+    if (supportMode === "recorder") {
+      await startMediaRecorder();
+      return;
+    }
+
+    setMessage("Voice input is unavailable in this browser.");
+  }
+
+  function startBrowserSpeechRecognition() {
+    const SpeechRecognition = getSpeechRecognitionConstructor();
+    if (!SpeechRecognition) {
+      setSupportMode("none");
+      setMessage("Voice input is unavailable in this browser.");
+      return;
+    }
+
+    let transcript = "";
+    let hadError = false;
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-AU";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.onresult = (event) => {
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        if (result.isFinal) transcript += ` ${result[0].transcript}`;
+      }
+    };
+    recognition.onerror = (event) => {
+      hadError = true;
+      setRecording(false);
+      setBusy(false);
+      const blocked = event.error === "not-allowed" || event.error === "service-not-allowed";
+      setMessage(blocked ? "Microphone access was not available. Typing works perfectly." : "Voice was not heard clearly. Please try again.");
+    };
+    recognition.onend = () => {
+      speechRef.current = null;
+      setRecording(false);
+      setBusy(false);
+      const text = transcript.trim();
+      if (text) {
+        onTranscript(text);
+        setMessage("Voice added.");
+      } else if (!hadError) {
+        setMessage("No speech was heard. Please try again or type it instead.");
+      }
+    };
+
     try {
+      speechRef.current = recognition;
+      recognition.start();
+      setRecording(true);
+      setMessage("Listening...");
+    } catch {
+      speechRef.current = null;
+      setRecording(false);
+      setMessage("Voice could not start. Typing works perfectly.");
+    }
+  }
+
+  async function startMediaRecorder() {
+    try {
+      const mimeType = getPreferredAudioMimeType();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      streamRef.current = stream;
       chunksRef.current = [];
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunksRef.current.push(event.data);
       };
       recorder.onstop = async () => {
         stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        setBusy(true);
         await transcribe(blob);
+        setBusy(false);
       };
       recorderRef.current = recorder;
       recorder.start();
       setRecording(true);
+      setMessage("Recording...");
     } catch {
+      setRecording(false);
+      setBusy(false);
       setMessage("Microphone access was not available. Typing works perfectly.");
     }
   }
 
   async function stop() {
-    recorderRef.current?.stop();
+    if (supportMode === "speech") {
+      speechRef.current?.stop();
+      setBusy(true);
+      setMessage("Finishing...");
+      return;
+    }
+
+    if (recorderRef.current?.state === "recording") {
+      recorderRef.current.stop();
+      setBusy(true);
+      setMessage("Listening back...");
+    }
     setRecording(false);
   }
 
   async function transcribe(blob: Blob) {
-    setMessage("Listening back...");
+    if (blob.size <= 0) {
+      setMessage("No audio was captured. Please try again or type it instead.");
+      return;
+    }
+
     const form = new FormData();
-    form.append("audio", blob, "tinybite-voice.webm");
+    form.append("audio", blob, `tinybite-voice.${extensionForMimeType(blob.type)}`);
     try {
       const response = await fetch("/api/transcribe", { method: "POST", body: form });
-      if (!response.ok) throw new Error("Transcription failed");
-      const data = (await response.json()) as { text: string };
-      onTranscript(data.text);
+      const responseText = await response.text();
+      let data = {} as { text?: string; message?: string };
+      try {
+        data = responseText ? (JSON.parse(responseText) as { text?: string; message?: string }) : data;
+      } catch {
+        data = {};
+      }
+      if (!response.ok) throw new Error(data.message || "Transcription failed.");
+      const text = data.text?.trim();
+      if (!text) throw new Error("No words were detected. Please try again or type it instead.");
+      onTranscript(text);
       setMessage("Voice added.");
-    } catch {
-      setMessage("Voice could not be transcribed. You can type it instead.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Voice could not be transcribed. You can type it instead.");
     }
   }
 
-  if (!supported) {
-    return floating ? null : <p className="text-xs font-medium text-[#8a6679]">Voice input is unavailable in this browser.</p>;
-  }
+  const unavailable = supportMode === "none";
+  const buttonDisabled = disabled || busy || supportMode === "checking" || unavailable;
+  const buttonLabel = unavailable ? "Voice input unavailable" : recording ? "Stop voice recording" : "Use voice input";
 
   return (
     <div className={floating ? "fixed left-4 top-4 z-40 flex items-center gap-2 sm:left-6 sm:top-5" : "flex flex-wrap items-center gap-2"}>
@@ -74,9 +229,9 @@ export function VoiceRecorder({ onTranscript, disabled = false, floating = false
         <button
           type="button"
           onClick={recording ? stop : start}
-          disabled={disabled}
-          aria-label={recording ? "Stop voice recording" : "Use voice input"}
-          title={recording ? "Stop recording" : "Use voice"}
+          disabled={buttonDisabled}
+          aria-label={buttonLabel}
+          title={buttonLabel}
           className={`pressable grid h-12 w-12 place-items-center rounded-full border shadow-[0_10px_24px_rgba(126,70,101,0.12)] ${
             recording ? "border-[#efd09a] bg-[#fff0d0]" : "border-[#e7ccd9] bg-[#fffafd]"
           } disabled:cursor-not-allowed disabled:border-[#d9c2cf] disabled:bg-[#eadce5]`}
@@ -88,17 +243,17 @@ export function VoiceRecorder({ onTranscript, disabled = false, floating = false
           type="button"
           variant={recording ? "danger" : "secondary"}
           onClick={recording ? stop : start}
-          disabled={disabled}
-          aria-label={recording ? "Stop voice recording" : "Use voice input"}
-          title={recording ? "Stop recording" : "Use voice"}
+          disabled={buttonDisabled}
+          aria-label={buttonLabel}
+          title={buttonLabel}
           className="flex h-12 w-12 items-center justify-center p-0"
         >
           <MicrophoneIcon active={recording} />
         </CuteButton>
       )}
-      {message ? (
+      {message || unavailable ? (
         <p className={floating ? "rounded-full bg-white/90 px-3 py-2 text-xs font-black text-[#5e3752] shadow-sm" : "text-xs font-semibold text-[#8a6679]"}>
-          {message}
+          {message || "Voice input is unavailable in this browser."}
         </p>
       ) : null}
     </div>

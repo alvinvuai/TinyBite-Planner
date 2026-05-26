@@ -322,6 +322,12 @@ This fixed the Full-fat yoghurt quantity/report issue.
 
 `npm run build` can change `next-env.d.ts` between `.next/dev/types/routes.d.ts` and `.next/types/routes.d.ts`. Treat this as generated noise unless the project intentionally updates it.
 
+### Voice Input
+
+Voice input has two paths: browser speech recognition when available, and `/api/transcribe` with OpenAI as a fallback. Keep the UI visible even when unsupported, surface the API error message in the recorder, and remember that server transcription requires a non-empty `OPENAI_API_KEY`.
+
+If transcription reaches OpenAI but fails with `429 insufficient_quota`, the key is being accepted but the OpenAI project has no usable quota/credits or has hit a project limit. Show that clearly to the user instead of a generic transcription failure.
+
 ## UI Guidance
 
 Keep the UI:
