@@ -326,6 +326,8 @@ This fixed the Full-fat yoghurt quantity/report issue.
 
 Voice input has two paths: browser speech recognition when available, and `/api/transcribe` with OpenAI as a fallback. Keep the UI visible even when unsupported, surface the API error message in the recorder, and remember that server transcription requires a non-empty `OPENAI_API_KEY`.
 
+The voice control belongs inside the main chat/search-style prompt bar, next to the send/enter button. Keep clear listening, processing, completed, and error states with visible animation or status text.
+
 If transcription reaches OpenAI but fails with `429 insufficient_quota`, the key is being accepted but the OpenAI project has no usable quota/credits or has hit a project limit. Show that clearly to the user instead of a generic transcription failure.
 
 ## UI Guidance
@@ -346,7 +348,7 @@ Known preferences:
 - Ingredient chips should visibly light up/raise when selected.
 - Ingredient visuals must match the actual food. Do not let known ingredients fall back to broad category icons; add a specific emoji or a small SVG in `public/food/` when no good emoji exists.
 - Unit buttons must be compact on phone.
-- Voice button belongs at the far top-left, not inside the control cluster.
+- Voice input should stay in the main prompt bar beside the send/enter button.
 - Main page should remain clean with selection on the left and editable quantities on the right for wider screens.
 
 ## Git Workflow

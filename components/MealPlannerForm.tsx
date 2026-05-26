@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { BabyMascot } from "@/components/BabyMascot";
 import { CuteButton } from "@/components/CuteButton";
@@ -9,7 +9,7 @@ import { MealQuantityGrid } from "@/components/MealQuantityGrid";
 import { MealReviewPanel } from "@/components/MealReviewPanel";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { SuggestedMeals } from "@/components/SuggestedMeals";
-import { VoiceRecorder } from "@/components/VoiceRecorder";
+import { VoiceRecorder, type VoiceRecorderStatus } from "@/components/VoiceRecorder";
 import {
   createCustomMealBuilderItem,
   createMealBuilderItem,
@@ -144,6 +144,8 @@ export function MealPlannerForm() {
   const [customFoodOpen, setCustomFoodOpen] = useState(false);
   const [customFoodName, setCustomFoodName] = useState("");
   const [customFoodCalories, setCustomFoodCalories] = useState("60");
+  const [promptNotice, setPromptNotice] = useState("");
+  const [voiceStatus, setVoiceStatus] = useState<VoiceRecorderStatus>({ state: "idle", message: "" });
   const [tipsOpen, setTipsOpen] = useState(false);
   const [targetsOpen, setTargetsOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
@@ -198,6 +200,12 @@ export function MealPlannerForm() {
     const timer = window.setTimeout(() => setSaveToastOpen(false), 2600);
     return () => window.clearTimeout(timer);
   }, [saveToastOpen]);
+
+  useEffect(() => {
+    if (!promptNotice) return;
+    const timer = window.setTimeout(() => setPromptNotice(""), 2600);
+    return () => window.clearTimeout(timer);
+  }, [promptNotice]);
 
   useEffect(() => {
     function updateBackToTopVisibility() {
@@ -319,7 +327,7 @@ export function MealPlannerForm() {
 
   function addTranscript(text: string) {
     setFreeText((current) => [current, text].filter(Boolean).join(" ").trim());
-    setTextOpen(true);
+    setTextOpen(false);
   }
 
   function updateSelectedIngredients(nextSelected: string[], targetMealType = mealType) {
@@ -341,8 +349,11 @@ export function MealPlannerForm() {
     });
   }
 
-  function applyFreeText() {
-    const normalized = normalizeIngredient(freeText);
+  function applyFreeText(text = freeText) {
+    const trimmedText = text.trim();
+    if (!trimmedText) return false;
+
+    const normalized = normalizeIngredient(trimmedText);
     const inferredMeal = mealTypes.find((type) => normalized.includes(normalizeIngredient(type)));
     const targetMealType = inferredMeal ?? mealType;
     const textIngredients = getAllowedIngredientDefinitions(targetMealType)
@@ -351,6 +362,19 @@ export function MealPlannerForm() {
     if (inferredMeal) changeMealType(inferredMeal);
     if (textIngredients.length) updateSelectedIngredients(Array.from(new Set([...selectedIngredients, ...textIngredients])), targetMealType);
     setTextOpen(false);
+    return Boolean(inferredMeal || textIngredients.length);
+  }
+
+  function submitPrompt(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const applied = applyFreeText();
+    if (!applied) {
+      setPromptNotice(freeText.trim() ? "No matching food found yet. Try rice, egg, yoghurt, banana, or lunch." : "Type or say foods to add them.");
+      return;
+    }
+
+    setFreeText("");
+    setPromptNotice("Added to planner.");
   }
 
   function addCustomFoodFromHome() {
@@ -501,8 +525,6 @@ export function MealPlannerForm() {
 
   return (
     <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 pb-10 pt-5 sm:px-6">
-      <VoiceRecorder onTranscript={addTranscript} disabled={loading} floating />
-
       {showBackToTop ? (
         <button
           type="button"
@@ -542,6 +564,56 @@ export function MealPlannerForm() {
         <p className="mx-auto mt-2 max-w-sm text-base font-semibold leading-6 text-[#765066]">
           Cute meal ideas with toddler-sized portions
         </p>
+      </section>
+
+      <section className="mx-auto mt-5 w-full max-w-3xl">
+        <form onSubmit={submitPrompt} className="chat-prompt-shell" aria-label="Add foods with text or voice">
+          <div
+            className={`chat-prompt-box ${
+              voiceStatus.state === "listening" ? "chat-prompt-box-listening" : voiceStatus.state === "completed" ? "chat-prompt-box-complete" : ""
+            }`}
+          >
+            <input
+              type="text"
+              value={freeText}
+              onChange={(event) => {
+                setFreeText(event.currentTarget.value);
+                setPromptNotice("");
+              }}
+              placeholder="Tell me foods or a meal: eggs, rice, banana for breakfast"
+              aria-label="Foods or meal request"
+              className="chat-prompt-input"
+            />
+            <div className="chat-prompt-actions">
+              <VoiceRecorder onTranscript={addTranscript} onStatusChange={setVoiceStatus} disabled={loading} variant="prompt" />
+              <button type="submit" aria-label="Add to planner" title="Add to planner" disabled={!freeText.trim()} className="chat-send-button pressable">
+                <SendIcon />
+              </button>
+            </div>
+          </div>
+          {voiceStatus.message || promptNotice ? (
+            <div
+              className={`chat-prompt-status ${
+                voiceStatus.state === "listening"
+                  ? "chat-prompt-status-listening"
+                  : voiceStatus.state === "completed"
+                    ? "chat-prompt-status-complete"
+                    : voiceStatus.state === "error" || voiceStatus.state === "unavailable"
+                      ? "chat-prompt-status-error"
+                      : ""
+              }`}
+            >
+              {voiceStatus.state === "listening" ? (
+                <span className="voice-status-dot" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </span>
+              ) : null}
+              {voiceStatus.message || promptNotice}
+            </div>
+          ) : null}
+        </form>
       </section>
 
       <section className="mt-5 grid gap-5 lg:grid-cols-[0.95fr_1.25fr] lg:items-start">
@@ -699,7 +771,7 @@ export function MealPlannerForm() {
             className="min-h-32 w-full resize-none rounded-[8px] border border-white/80 bg-white/78 px-4 py-3 text-base font-semibold leading-6 text-[#633d55] shadow-sm outline-none placeholder:text-[#b999aa] focus:border-[#ff8dbc]"
           />
           <div className="mt-3 flex justify-end">
-            <CuteButton type="button" onClick={applyFreeText}>
+            <CuteButton type="button" onClick={() => applyFreeText()}>
               Add to planner
             </CuteButton>
           </div>
@@ -857,5 +929,14 @@ function Tip({ title, body }: { title: string; body: string }) {
       <p className="font-black text-[#633d55]">{title}</p>
       <p>{body}</p>
     </div>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+      <path d="M12 19V5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+      <path d="m6.5 10.5 5.5-5.5 5.5 5.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }

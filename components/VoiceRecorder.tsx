@@ -1,12 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CuteButton } from "@/components/CuteButton";
+
+export type VoiceRecorderStatusState = "idle" | "listening" | "processing" | "completed" | "error" | "unavailable";
+
+export type VoiceRecorderStatus = {
+  state: VoiceRecorderStatusState;
+  message: string;
+};
 
 type VoiceRecorderProps = {
   onTranscript: (text: string) => void;
+  onStatusChange?: (status: VoiceRecorderStatus) => void;
   disabled?: boolean;
   floating?: boolean;
+  variant?: "default" | "prompt";
 };
 
 type VoiceSupportMode = "checking" | "speech" | "recorder" | "none";
@@ -56,8 +65,9 @@ function extensionForMimeType(type: string) {
   return "webm";
 }
 
-export function VoiceRecorder({ onTranscript, disabled = false, floating = false }: VoiceRecorderProps) {
+export function VoiceRecorder({ onTranscript, onStatusChange, disabled = false, floating = false, variant = "default" }: VoiceRecorderProps) {
   const [supportMode, setSupportMode] = useState<VoiceSupportMode>("checking");
+  const [statusState, setStatusState] = useState<VoiceRecorderStatusState>("idle");
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -66,11 +76,21 @@ export function VoiceRecorder({ onTranscript, disabled = false, floating = false
   const streamRef = useRef<MediaStream | null>(null);
   const speechRef = useRef<SpeechRecognitionLike | null>(null);
 
+  const publishStatus = useCallback(
+    (state: VoiceRecorderStatusState, nextMessage: string) => {
+      setStatusState(state);
+      setMessage(nextMessage);
+      onStatusChange?.({ state, message: nextMessage });
+    },
+    [onStatusChange],
+  );
+
   useEffect(() => {
     queueMicrotask(() => {
       const hasSpeechRecognition = Boolean(getSpeechRecognitionConstructor());
       const hasRecorder = "MediaRecorder" in window && Boolean(navigator.mediaDevices?.getUserMedia);
       setSupportMode(hasSpeechRecognition ? "speech" : hasRecorder ? "recorder" : "none");
+      if (!hasSpeechRecognition && !hasRecorder) publishStatus("unavailable", "Voice input is unavailable in this browser.");
     });
 
     return () => {
@@ -78,10 +98,16 @@ export function VoiceRecorder({ onTranscript, disabled = false, floating = false
       recorderRef.current?.stop();
       streamRef.current?.getTracks().forEach((track) => track.stop());
     };
-  }, []);
+  }, [publishStatus]);
+
+  useEffect(() => {
+    if (statusState !== "completed") return;
+    const timer = window.setTimeout(() => publishStatus("idle", ""), 2400);
+    return () => window.clearTimeout(timer);
+  }, [publishStatus, statusState]);
 
   async function start() {
-    setMessage("");
+    publishStatus("idle", "");
     if (supportMode === "speech") {
       startBrowserSpeechRecognition();
       return;
@@ -92,14 +118,14 @@ export function VoiceRecorder({ onTranscript, disabled = false, floating = false
       return;
     }
 
-    setMessage("Voice input is unavailable in this browser.");
+    publishStatus("unavailable", "Voice input is unavailable in this browser.");
   }
 
   function startBrowserSpeechRecognition() {
     const SpeechRecognition = getSpeechRecognitionConstructor();
     if (!SpeechRecognition) {
       setSupportMode("none");
-      setMessage("Voice input is unavailable in this browser.");
+      publishStatus("unavailable", "Voice input is unavailable in this browser.");
       return;
     }
 
@@ -120,7 +146,7 @@ export function VoiceRecorder({ onTranscript, disabled = false, floating = false
       setRecording(false);
       setBusy(false);
       const blocked = event.error === "not-allowed" || event.error === "service-not-allowed";
-      setMessage(blocked ? "Microphone access was not available. Typing works perfectly." : "Voice was not heard clearly. Please try again.");
+      publishStatus("error", blocked ? "Microphone access was not available. Typing works perfectly." : "Voice was not heard clearly. Please try again.");
     };
     recognition.onend = () => {
       speechRef.current = null;
@@ -129,9 +155,9 @@ export function VoiceRecorder({ onTranscript, disabled = false, floating = false
       const text = transcript.trim();
       if (text) {
         onTranscript(text);
-        setMessage("Voice added.");
+        publishStatus("completed", "Voice added.");
       } else if (!hadError) {
-        setMessage("No speech was heard. Please try again or type it instead.");
+        publishStatus("error", "No speech was heard. Please try again or type it instead.");
       }
     };
 
@@ -139,11 +165,11 @@ export function VoiceRecorder({ onTranscript, disabled = false, floating = false
       speechRef.current = recognition;
       recognition.start();
       setRecording(true);
-      setMessage("Listening...");
+      publishStatus("listening", "Listening...");
     } catch {
       speechRef.current = null;
       setRecording(false);
-      setMessage("Voice could not start. Typing works perfectly.");
+      publishStatus("error", "Voice could not start. Typing works perfectly.");
     }
   }
 
@@ -162,17 +188,18 @@ export function VoiceRecorder({ onTranscript, disabled = false, floating = false
         streamRef.current = null;
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
         setBusy(true);
+        publishStatus("processing", "Listening back...");
         await transcribe(blob);
         setBusy(false);
       };
       recorderRef.current = recorder;
       recorder.start();
       setRecording(true);
-      setMessage("Recording...");
+      publishStatus("listening", "Listening...");
     } catch {
       setRecording(false);
       setBusy(false);
-      setMessage("Microphone access was not available. Typing works perfectly.");
+      publishStatus("error", "Microphone access was not available. Typing works perfectly.");
     }
   }
 
@@ -180,21 +207,21 @@ export function VoiceRecorder({ onTranscript, disabled = false, floating = false
     if (supportMode === "speech") {
       speechRef.current?.stop();
       setBusy(true);
-      setMessage("Finishing...");
+      publishStatus("processing", "Finishing...");
       return;
     }
 
     if (recorderRef.current?.state === "recording") {
       recorderRef.current.stop();
       setBusy(true);
-      setMessage("Listening back...");
+      publishStatus("processing", "Listening back...");
     }
     setRecording(false);
   }
 
   async function transcribe(blob: Blob) {
     if (blob.size <= 0) {
-      setMessage("No audio was captured. Please try again or type it instead.");
+      publishStatus("error", "No audio was captured. Please try again or type it instead.");
       return;
     }
 
@@ -213,15 +240,41 @@ export function VoiceRecorder({ onTranscript, disabled = false, floating = false
       const text = data.text?.trim();
       if (!text) throw new Error("No words were detected. Please try again or type it instead.");
       onTranscript(text);
-      setMessage("Voice added.");
+      publishStatus("completed", "Voice added.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Voice could not be transcribed. You can type it instead.");
+      publishStatus("error", error instanceof Error ? error.message : "Voice could not be transcribed. You can type it instead.");
     }
   }
 
   const unavailable = supportMode === "none";
   const buttonDisabled = disabled || busy || supportMode === "checking" || unavailable;
   const buttonLabel = unavailable ? "Voice input unavailable" : recording ? "Stop voice recording" : "Use voice input";
+  const active = statusState === "listening" || recording;
+  const processing = statusState === "processing" || busy;
+  const completed = statusState === "completed";
+  const error = statusState === "error" || statusState === "unavailable";
+
+  if (variant === "prompt") {
+    return (
+      <button
+        type="button"
+        onClick={recording ? stop : start}
+        disabled={buttonDisabled}
+        aria-label={buttonLabel}
+        title={buttonLabel}
+        className={`voice-prompt-button pressable ${active ? "voice-prompt-button-listening" : ""} ${processing ? "voice-prompt-button-processing" : ""} ${
+          completed ? "voice-prompt-button-complete" : ""
+        } ${error ? "voice-prompt-button-error" : ""}`}
+      >
+        <MicrophoneIcon active={active || processing} />
+        <span aria-hidden="true" className="voice-prompt-bars">
+          <span />
+          <span />
+          <span />
+        </span>
+      </button>
+    );
+  }
 
   return (
     <div className={floating ? "fixed left-4 top-4 z-40 flex items-center gap-2 sm:left-6 sm:top-5" : "flex flex-wrap items-center gap-2"}>
