@@ -38,6 +38,8 @@ const defaultProfile: ChildProfile = {
 
 const mealDraftStorageKey = "tinybite-meal-drafts";
 const defaultDraftId = "meal-draft-1";
+const hiddenMealTypes = new Set(["Whole day plan"]);
+const visibleMealTypes = mealTypes.filter((type) => !hiddenMealTypes.has(type));
 
 type MealDraftSession = {
   id: string;
@@ -84,6 +86,10 @@ type SavedMealRecordResponse = {
   message?: string;
 };
 
+function normalizeVisibleMealType(mealType: string) {
+  return visibleMealTypes.includes(mealType) ? mealType : "Breakfast";
+}
+
 function localDateString(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -92,11 +98,12 @@ function localDateString(date = new Date()) {
 }
 
 function createEmptyDraft(mealType = "Breakfast", index = 1): MealDraftSession {
+  const normalizedMealType = normalizeVisibleMealType(mealType);
   return {
     id: typeof crypto !== "undefined" && "randomUUID" in crypto ? `meal-draft-${crypto.randomUUID()}` : `meal-draft-${Date.now()}`,
     title: `Draft ${index}`,
-    mode: mealType === "Whole day plan" ? "whole_day" : "single",
-    mealType,
+    mode: "single",
+    mealType: normalizedMealType,
     selectedIngredients: [],
     freeText: "",
     mealItems: [],
@@ -115,8 +122,8 @@ function createInitialDraft(): MealDraftSession {
 function nextDraftMealType(currentMealType: string) {
   if (currentMealType === "Breakfast") return "Lunch";
   if (currentMealType === "Lunch") return "Dinner";
-  const currentIndex = mealTypes.indexOf(currentMealType);
-  return mealTypes[currentIndex + 1] ?? "Breakfast";
+  const currentIndex = visibleMealTypes.indexOf(currentMealType);
+  return visibleMealTypes[currentIndex + 1] ?? "Breakfast";
 }
 
 function isMealDraftSession(value: unknown): value is MealDraftSession {
@@ -133,14 +140,28 @@ function isMealDraftSession(value: unknown): value is MealDraftSession {
   );
 }
 
+function normalizeMealDraftSession(session: MealDraftSession): MealDraftSession {
+  const mealType = normalizeVisibleMealType(session.mealType);
+  const allowedKeys = new Set(getAllowedIngredientDefinitions(mealType).map((ingredient) => ingredient.key));
+  return {
+    ...session,
+    mode: "single",
+    mealType,
+    selectedIngredients: session.selectedIngredients.filter((selected) => isIngredientAllowedForMeal(selected, mealType)),
+    mealItems: rebalanceSuggestedItems(
+      session.mealItems.filter((item) => allowedKeys.has(item.ingredientKey) || item.ingredientKey.startsWith("custom_")),
+      mealType,
+    ),
+    selectedMealId: mealType === session.mealType ? session.selectedMealId : null,
+  };
+}
+
 export function MealPlannerForm() {
-  const [mode, setMode] = useState<PlanningMode>("single");
   const [mealType, setMealType] = useState("Breakfast");
   const [selectedIngredients, setSelectedIngredients] = useState<string[]>([]);
   const [freeText, setFreeText] = useState("");
   const [profile, setProfile] = useState<ChildProfile>(defaultProfile);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [textOpen, setTextOpen] = useState(false);
   const [customFoodOpen, setCustomFoodOpen] = useState(false);
   const [customFoodName, setCustomFoodName] = useState("");
   const [customFoodCalories, setCustomFoodCalories] = useState("60");
@@ -175,7 +196,7 @@ export function MealPlannerForm() {
         const savedDrafts = localStorage.getItem(mealDraftStorageKey);
         if (savedDrafts) {
           const parsed = JSON.parse(savedDrafts) as { activeSessionId?: string; sessions?: unknown[] };
-          const sessions = Array.isArray(parsed.sessions) ? parsed.sessions.filter(isMealDraftSession) : [];
+          const sessions = Array.isArray(parsed.sessions) ? parsed.sessions.filter(isMealDraftSession).map(normalizeMealDraftSession) : [];
           if (sessions.length) {
             const active = sessions.find((session) => session.id === parsed.activeSessionId) ?? sessions[0];
             setMealSessions(sessions);
@@ -224,7 +245,7 @@ export function MealPlannerForm() {
     const activeSnapshot: MealDraftSession = {
       id: activeSessionId,
       title: activeSession?.title || `Draft ${activeIndex + 1 || 1}`,
-      mode,
+      mode: "single",
       mealType,
       selectedIngredients,
       freeText,
@@ -236,18 +257,12 @@ export function MealPlannerForm() {
       ? mealSessions.map((session) => (session.id === activeSessionId ? activeSnapshot : session))
       : [...mealSessions, activeSnapshot];
     localStorage.setItem(mealDraftStorageKey, JSON.stringify({ activeSessionId, sessions }));
-  }, [activeSessionId, freeText, mealItems, mealSessions, mealType, mode, selectedIngredients, selectedMealId, sessionsReady]);
+  }, [activeSessionId, freeText, mealItems, mealSessions, mealType, selectedIngredients, selectedMealId, sessionsReady]);
 
   const suggestedMeals = suggestMeals(mealItems, mealType);
   const summary = useMemo(() => summarizeMeal(mealItems, mealType), [mealItems, mealType]);
   const selectedSchedule = mealSchedules[mealType];
   const canReview = mealItems.length > 0;
-
-  function updateMode(nextMode: PlanningMode) {
-    setMode(nextMode);
-    if (nextMode === "whole_day") changeMealType("Whole day plan");
-    if (nextMode === "single" && mealType === "Whole day plan") changeMealType("Breakfast");
-  }
 
   function changeMealType(nextMealType: string) {
     setMealType(nextMealType);
@@ -259,12 +274,12 @@ export function MealPlannerForm() {
   }
 
   function restoreSession(session: MealDraftSession) {
-    setMode(session.mode);
-    setMealType(session.mealType);
-    setSelectedIngredients(session.selectedIngredients);
-    setFreeText(session.freeText);
-    setMealItems(session.mealItems);
-    setSelectedMealId(session.selectedMealId);
+    const normalizedSession = normalizeMealDraftSession(session);
+    setMealType(normalizedSession.mealType);
+    setSelectedIngredients(normalizedSession.selectedIngredients);
+    setFreeText(normalizedSession.freeText);
+    setMealItems(normalizedSession.mealItems);
+    setSelectedMealId(normalizedSession.selectedMealId);
     setReview(null);
     setError("");
     setSavedMessage("");
@@ -274,7 +289,7 @@ export function MealPlannerForm() {
     return {
       id: activeSessionId,
       title: existing?.title || `Draft ${mealSessions.findIndex((session) => session.id === activeSessionId) + 1 || 1}`,
-      mode,
+      mode: "single",
       mealType,
       selectedIngredients,
       freeText,
@@ -327,7 +342,6 @@ export function MealPlannerForm() {
 
   function addTranscript(text: string) {
     setFreeText((current) => [current, text].filter(Boolean).join(" ").trim());
-    setTextOpen(false);
   }
 
   function updateSelectedIngredients(nextSelected: string[], targetMealType = mealType) {
@@ -354,14 +368,13 @@ export function MealPlannerForm() {
     if (!trimmedText) return false;
 
     const normalized = normalizeIngredient(trimmedText);
-    const inferredMeal = mealTypes.find((type) => normalized.includes(normalizeIngredient(type)));
+    const inferredMeal = visibleMealTypes.find((type) => normalized.includes(normalizeIngredient(type)));
     const targetMealType = inferredMeal ?? mealType;
     const textIngredients = getAllowedIngredientDefinitions(targetMealType)
       .filter((definition) => definition.aliases.some((alias) => normalized.includes(normalizeIngredient(alias))))
       .map((definition) => definition.name);
     if (inferredMeal) changeMealType(inferredMeal);
     if (textIngredients.length) updateSelectedIngredients(Array.from(new Set([...selectedIngredients, ...textIngredients])), targetMealType);
-    setTextOpen(false);
     return Boolean(inferredMeal || textIngredients.length);
   }
 
@@ -549,13 +562,34 @@ export function MealPlannerForm() {
         </div>
       ) : null}
 
-      <header className="flex items-center justify-end gap-3">
-        <Link className="pressable rounded-full border border-[#e7ccd9] bg-[#fffafd] px-5 py-3 text-sm font-black text-[#5e3752] shadow-sm" href="/report">
+      <header className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+        <Link
+          className="pressable inline-flex min-h-10 items-center rounded-full border border-[#e7ccd9] bg-[#fffafd] px-3 py-2 text-xs font-black text-[#5e3752] shadow-sm sm:px-4 sm:text-sm"
+          href="/report"
+        >
           Report
         </Link>
-        <CuteButton type="button" variant="ghost" onClick={() => setSettingsOpen(true)}>
+        <button
+          type="button"
+          onClick={() => setTipsOpen(true)}
+          className="pressable inline-flex min-h-10 items-center rounded-full border border-[#ead8e2] bg-[#fffafd] px-3 py-2 text-xs font-black text-[#5e3752] shadow-sm sm:px-4 sm:text-sm"
+        >
+          Tips
+        </button>
+        <button
+          type="button"
+          onClick={() => setTargetsOpen(true)}
+          className="pressable inline-flex min-h-10 items-center rounded-full border border-[#ead8e2] bg-[#fffafd] px-3 py-2 text-xs font-black text-[#5e3752] shadow-sm sm:px-4 sm:text-sm"
+        >
+          Calories Map
+        </button>
+        <button
+          type="button"
+          onClick={() => setSettingsOpen(true)}
+          className="pressable inline-flex min-h-10 items-center rounded-full border border-[#ead8e2] bg-[#fffafd] px-3 py-2 text-xs font-black text-[#5e3752] shadow-sm sm:px-4 sm:text-sm"
+        >
           Settings
-        </CuteButton>
+        </button>
       </header>
 
       <section className="pt-2 text-center">
@@ -658,33 +692,9 @@ export function MealPlannerForm() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 rounded-[8px] bg-white/54 p-1">
-            {(["single", "whole_day"] as const).map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => updateMode(item)}
-                className={`pressable min-h-12 rounded-[8px] text-sm font-black ${
-                  mode === item ? "bg-white text-[#9c456c] shadow-sm" : "text-[#8a6679]"
-                }`}
-              >
-                {item === "single" ? "Single meal" : "Whole day"}
-              </button>
-            ))}
-          </div>
-
           <div className="flex flex-wrap gap-2">
-            <CuteButton type="button" variant="secondary" onClick={() => setTextOpen(true)} className="min-h-10 px-4 py-2">
-              Type foods
-            </CuteButton>
             <CuteButton type="button" variant="secondary" onClick={() => setCustomFoodOpen(true)} className="min-h-10 px-4 py-2">
               Custom food
-            </CuteButton>
-            <CuteButton type="button" variant="secondary" onClick={() => setTipsOpen(true)} className="min-h-10 px-4 py-2">
-              Mealtime tips
-            </CuteButton>
-            <CuteButton type="button" variant="secondary" onClick={() => setTargetsOpen(true)} className="min-h-10 px-4 py-2">
-              Calorie map
             </CuteButton>
           </div>
 
@@ -694,11 +704,10 @@ export function MealPlannerForm() {
               value={mealType}
               onChange={(event) => {
                 changeMealType(event.target.value);
-                if (event.target.value === "Whole day plan") setMode("whole_day");
               }}
               className="min-h-12 w-full rounded-[8px] border border-white/80 bg-white/78 px-4 text-base font-bold text-[#633d55] shadow-sm outline-none focus:border-[#ff8dbc]"
             >
-              {mealTypes.map((type) => (
+              {visibleMealTypes.map((type) => (
                 <option key={type}>{type}</option>
               ))}
             </select>
@@ -760,23 +769,6 @@ export function MealPlannerForm() {
           <MealReviewPanel review={review} loading={loading} error="" />
         </div>
       </section>
-
-      {textOpen ? (
-        <Modal title="Tell Dưa Béo what you have" onClose={() => setTextOpen(false)}>
-          <textarea
-            value={freeText}
-            onChange={(event) => setFreeText(event.target.value)}
-            rows={5}
-            placeholder="I have eggs and rice and cheese and banana for breakfast."
-            className="min-h-32 w-full resize-none rounded-[8px] border border-white/80 bg-white/78 px-4 py-3 text-base font-semibold leading-6 text-[#633d55] shadow-sm outline-none placeholder:text-[#b999aa] focus:border-[#ff8dbc]"
-          />
-          <div className="mt-3 flex justify-end">
-            <CuteButton type="button" onClick={() => applyFreeText()}>
-              Add to planner
-            </CuteButton>
-          </div>
-        </Modal>
-      ) : null}
 
       {customFoodOpen ? (
         <Modal title="Add custom food" onClose={() => setCustomFoodOpen(false)}>
@@ -882,7 +874,7 @@ export function MealPlannerForm() {
       {targetsOpen ? (
         <Modal title="Tiny calorie map" onClose={() => setTargetsOpen(false)}>
           <div className="grid gap-2">
-            {mealTypes.map((type) => {
+            {visibleMealTypes.map((type) => {
               const target = mealTargets[type];
               const schedule = mealSchedules[type];
               return (

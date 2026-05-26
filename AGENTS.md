@@ -349,6 +349,9 @@ Known preferences:
 - Ingredient visuals must match the actual food. Do not let known ingredients fall back to broad category icons; add a specific emoji or a small SVG in `public/food/` when no good emoji exists.
 - Unit buttons must be compact on phone.
 - Voice input should stay in the main prompt bar beside the send/enter button.
+- The old **Type foods** button/modal should stay removed; typed food entry belongs in the prompt bar.
+- Hide the **Whole day** planning option from the main UI unless Alvin asks to bring it back.
+- Keep **Tips** and **Calories Map** in the top menu beside **Report**.
 - Main page should remain clean with selection on the left and editable quantities on the right for wider screens.
 
 ## Git Workflow
