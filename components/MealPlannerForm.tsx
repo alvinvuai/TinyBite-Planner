@@ -51,6 +51,39 @@ type MealDraftSession = {
   updatedAt: string;
 };
 
+type MealRecordPayload = {
+  date: string;
+  mealName: string;
+  completionPercent: number;
+  totalMealCalories: number;
+  ingredients: Array<{
+    ingredientKey: string;
+    name: string;
+    amount: number;
+    unit: string;
+    grams: number;
+    calories: number;
+    suggestedAmount: number;
+    suggestedUnit: string;
+    suggestedCalories: number;
+  }>;
+};
+
+type SavedMealRecordResponse = {
+  record?: {
+    id: string;
+    totalConsumedCalories: number;
+  };
+  existingRecord?: {
+    id: string;
+    date: string;
+    mealName: string;
+    completionPercent: number;
+    totalConsumedCalories: number;
+  };
+  message?: string;
+};
+
 function localDateString(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -116,6 +149,8 @@ export function MealPlannerForm() {
   const [saveOpen, setSaveOpen] = useState(false);
   const [completionPercent, setCompletionPercent] = useState(80);
   const [recordDate, setRecordDate] = useState(localDateString());
+  const [saveError, setSaveError] = useState("");
+  const [duplicateRecord, setDuplicateRecord] = useState<SavedMealRecordResponse["existingRecord"] | null>(null);
   const [mealItems, setMealItems] = useState<MealBuilderItem[]>([]);
   const [selectedMealId, setSelectedMealId] = useState<string | null>(null);
   const [review, setReview] = useState<MealReview | null>(null);
@@ -367,48 +402,94 @@ export function MealPlannerForm() {
     }
   }
 
+  function buildMealRecordPayload(): MealRecordPayload {
+    return {
+      date: recordDate,
+      mealName: mealType,
+      completionPercent,
+      totalMealCalories: summary.totalCalories,
+      ingredients: mealItems.map((item) => ({
+        ingredientKey: item.ingredientKey,
+        name: item.name,
+        amount: item.amount,
+        unit: item.unit,
+        grams: item.grams,
+        calories: item.calories,
+        suggestedAmount: item.suggestedAmount,
+        suggestedUnit: item.suggestedUnit,
+        suggestedCalories: item.suggestedCalories,
+      })),
+    };
+  }
+
+  function openSaveMealRecord() {
+    setRecordDate(localDateString());
+    setSaveError("");
+    setDuplicateRecord(null);
+    setSaveOpen(true);
+  }
+
   async function saveMealRecord() {
-    setError("");
+    setSaveError("");
+    setDuplicateRecord(null);
     setSavedMessage("");
     setSaving(true);
     try {
-      const totalMealCalories = summary.totalCalories;
+      const payload = buildMealRecordPayload();
       const result = await fetch("/api/meal-records", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          date: recordDate,
-          mealName: mealType,
-          completionPercent,
-          totalMealCalories,
-          ingredients: mealItems.map((item) => ({
-            ingredientKey: item.ingredientKey,
-            name: item.name,
-            amount: item.amount,
-            unit: item.unit,
-            grams: item.grams,
-            calories: item.calories,
-            suggestedAmount: item.suggestedAmount,
-            suggestedUnit: item.suggestedUnit,
-            suggestedCalories: item.suggestedCalories,
-          })),
-        }),
+        body: JSON.stringify(payload),
       });
       const responseText = await result.text();
-      let data = {} as { record?: { totalConsumedCalories: number }; message?: string };
+      let data: SavedMealRecordResponse = {};
       try {
-        data = responseText ? (JSON.parse(responseText) as { record?: { totalConsumedCalories: number }; message?: string }) : data;
+        data = responseText ? (JSON.parse(responseText) as SavedMealRecordResponse) : data;
       } catch {
         throw new Error("Could not save meal record. Please try again.");
       }
       if (!result.ok || !data.record) {
+        if (result.status === 409 && data.existingRecord) setDuplicateRecord(data.existingRecord);
         throw new Error(data.message || "Could not save meal record.");
       }
       setSaveOpen(false);
       setSaveToastOpen(true);
       setSavedMessage(`Saved ${mealType}: about ${data.record.totalConsumedCalories} kcal consumed. View it in Report.`);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not save meal record.");
+      setSaveError(caught instanceof Error ? caught.message : "Could not save meal record.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function updateExistingMealRecord() {
+    if (!duplicateRecord) return;
+    setSaveError("");
+    setSaving(true);
+    try {
+      const payload = buildMealRecordPayload();
+      const result = await fetch("/api/meal-records", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: duplicateRecord.id, ...payload }),
+      });
+      const responseText = await result.text();
+      let data: SavedMealRecordResponse = {};
+      try {
+        data = responseText ? (JSON.parse(responseText) as SavedMealRecordResponse) : data;
+      } catch {
+        throw new Error("Could not update the previous meal record. Please try again.");
+      }
+      if (!result.ok || !data.record) {
+        if (result.status === 409 && data.existingRecord) setDuplicateRecord(data.existingRecord);
+        throw new Error(data.message || "Could not update the previous meal record.");
+      }
+      setDuplicateRecord(null);
+      setSaveOpen(false);
+      setSaveToastOpen(true);
+      setSavedMessage(`Updated ${mealType}: about ${data.record.totalConsumedCalories} kcal consumed. View it in Report.`);
+    } catch (caught) {
+      setSaveError(caught instanceof Error ? caught.message : "Could not update the previous meal record.");
     } finally {
       setSaving(false);
     }
@@ -596,10 +677,7 @@ export function MealPlannerForm() {
               variant="secondary"
               className="w-full text-base"
               disabled={!canReview || saving}
-              onClick={() => {
-                setRecordDate(localDateString());
-                setSaveOpen(true);
-              }}
+              onClick={openSaveMealRecord}
             >
               Save meal record
             </CuteButton>
@@ -664,7 +742,11 @@ export function MealPlannerForm() {
               <input
                 type="date"
                 value={recordDate}
-                onChange={(event) => setRecordDate(event.currentTarget.value || localDateString())}
+                onChange={(event) => {
+                  setRecordDate(event.currentTarget.value || localDateString());
+                  setSaveError("");
+                  setDuplicateRecord(null);
+                }}
                 className="min-h-12 w-full rounded-[8px] border border-[#f6cbdb] bg-white px-3 text-base font-black text-[#633d55] outline-none focus:border-[#ff8dbc]"
               />
             </label>
@@ -687,6 +769,24 @@ export function MealPlannerForm() {
             <p className="mt-3 text-sm font-semibold leading-6 text-[#765066]">
               Offered {summary.totalCalories} kcal. Estimated eaten {Math.round((summary.totalCalories * completionPercent) / 100)} kcal.
             </p>
+            {saveError ? (
+              <div className="mt-4 rounded-[8px] border border-[#f0c37c] bg-[#fff7e8] p-3 text-sm font-bold leading-6 text-[#7a4a20]">
+                <p>{saveError}</p>
+                {duplicateRecord ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <CuteButton type="button" variant="secondary" onClick={updateExistingMealRecord} disabled={saving} className="min-h-10 px-4 py-2 text-sm">
+                      {saving ? "Updating..." : "Update previous record"}
+                    </CuteButton>
+                    <Link
+                      href="/report"
+                      className="pressable inline-flex min-h-10 items-center rounded-full border border-[#e7ccd9] bg-white px-4 py-2 text-sm font-black text-[#633d55]"
+                    >
+                      Open report
+                    </Link>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           <div className="mt-3 flex justify-end">
             <CuteButton type="button" onClick={saveMealRecord} disabled={saving}>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { findDuplicateMealRecord } from "@/lib/mealRecordRules";
 import { getMealRecordStore } from "@/lib/mealRecordStore";
 import type { MealRecord } from "@/types/mealRecord";
 
@@ -28,7 +29,15 @@ const createMealRecordSchema = z.object({
 const updateMealRecordDateSchema = z.object({
   id: z.string().uuid(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-});
+}).strict();
+
+const updateMealRecordDetailsSchema = createMealRecordSchema.extend({
+  id: z.string().uuid(),
+}).strict();
+
+const updateMealRecordSchema = z.union([updateMealRecordDetailsSchema, updateMealRecordDateSchema]);
+
+type MealRecordInput = z.infer<typeof createMealRecordSchema>;
 
 export async function GET() {
   const records = await getMealRecordStore().list();
@@ -53,26 +62,13 @@ export async function POST(request: Request) {
   }
 
   const input = validation.data;
-  const totalMealCalories = Math.round(input.totalMealCalories);
-  const completionPercent = Math.round(input.completionPercent);
-  const record: MealRecord = {
-    id: crypto.randomUUID(),
-    user: "Dua",
-    date: input.date,
-    mealName: input.mealName,
-    completionPercent,
-    totalMealCalories,
-    totalConsumedCalories: Math.round((totalMealCalories * completionPercent) / 100),
-    ingredients: input.ingredients.map((ingredient) => ({
-      ...ingredient,
-      calories: Math.round(ingredient.calories),
-      grams: Math.round(ingredient.grams),
-      suggestedCalories: Math.round(ingredient.suggestedCalories),
-    })),
-    createdAt: new Date().toISOString(),
-  };
+  const store = getMealRecordStore();
+  const records = await store.list();
+  const duplicate = findDuplicateMealRecord(records, input.date, input.mealName);
+  if (duplicate) return duplicateMealRecordResponse(duplicate);
 
-  const saved = await getMealRecordStore().add(record);
+  const record = buildMealRecord(input);
+  const saved = await store.add(record);
   return NextResponse.json({ record: saved }, { status: 201 });
 }
 
@@ -85,15 +81,76 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "BAD_REQUEST", message: "Meal record update was missing. Please try again." }, { status: 400 });
   }
 
-  const validation = updateMealRecordDateSchema.safeParse(rawInput);
+  const validation = updateMealRecordSchema.safeParse(rawInput);
   if (!validation.success) {
     return NextResponse.json({ error: "BAD_REQUEST", message: "Please choose a valid saved meal record and date." }, { status: 400 });
   }
 
-  const updated = await getMealRecordStore().updateDate(validation.data.id, validation.data.date);
+  const input = validation.data;
+  const store = getMealRecordStore();
+  const records = await store.list();
+  const currentRecord = records.find((record) => record.id === input.id && record.user === "Dua");
+  if (!currentRecord) {
+    return NextResponse.json({ error: "NOT_FOUND", message: "That saved meal record could not be found." }, { status: 404 });
+  }
+
+  if ("mealName" in input) {
+    const duplicate = findDuplicateMealRecord(records, input.date, input.mealName, input.id);
+    if (duplicate) return duplicateMealRecordResponse(duplicate);
+
+    const updated = await store.update(buildMealRecord(input, input.id, currentRecord.createdAt));
+    if (!updated) {
+      return NextResponse.json({ error: "NOT_FOUND", message: "That saved meal record could not be found." }, { status: 404 });
+    }
+
+    return NextResponse.json({ record: updated });
+  }
+
+  const duplicate = findDuplicateMealRecord(records, input.date, currentRecord.mealName, input.id);
+  if (duplicate) return duplicateMealRecordResponse(duplicate);
+
+  const updated = await store.updateDate(input.id, input.date);
   if (!updated) {
     return NextResponse.json({ error: "NOT_FOUND", message: "That saved meal record could not be found." }, { status: 404 });
   }
 
   return NextResponse.json({ record: updated });
+}
+
+function buildMealRecord(input: MealRecordInput, id = crypto.randomUUID(), createdAt = new Date().toISOString()): MealRecord {
+  const totalMealCalories = Math.round(input.totalMealCalories);
+  const completionPercent = Math.round(input.completionPercent);
+  return {
+    id,
+    user: "Dua",
+    date: input.date,
+    mealName: input.mealName,
+    completionPercent,
+    totalMealCalories,
+    totalConsumedCalories: Math.round((totalMealCalories * completionPercent) / 100),
+    ingredients: input.ingredients.map((ingredient) => ({
+      ...ingredient,
+      calories: Math.round(ingredient.calories),
+      grams: Math.round(ingredient.grams),
+      suggestedCalories: Math.round(ingredient.suggestedCalories),
+    })),
+    createdAt,
+  };
+}
+
+function duplicateMealRecordResponse(existingRecord: MealRecord) {
+  return NextResponse.json(
+    {
+      error: "DUPLICATE_MEAL_RECORD",
+      message: `${existingRecord.mealName} already has a saved record for ${existingRecord.date}. Please edit the previous record instead of adding a duplicate.`,
+      existingRecord: {
+        id: existingRecord.id,
+        date: existingRecord.date,
+        mealName: existingRecord.mealName,
+        completionPercent: existingRecord.completionPercent,
+        totalConsumedCalories: existingRecord.totalConsumedCalories,
+      },
+    },
+    { status: 409 },
+  );
 }

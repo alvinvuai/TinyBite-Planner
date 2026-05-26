@@ -31,10 +31,11 @@ const foodIcons: Record<string, string> = {
   pork: "🥓",
   beef_vege_soup: "🍲",
   chicken_vege_soup: "🥘",
-  pork_vege_soup: "🍜",
+  pork_vege_soup: "🍲",
   tofu: "⬜",
   beans_lentils: "🫘",
   avocado: "🥑",
+  laughing_cow_cheese: "🧀",
   peanut_butter: "🥜",
   bread: "🍞",
   biscuit: "🍪",
@@ -51,6 +52,8 @@ const foodIcons: Record<string, string> = {
 
 const foodImageSrc: Record<string, string> = {
   plum: "/food/plum.svg",
+  prune: "/food/prune.svg",
+  sesame_seed: "/food/sesame-seed.svg",
   vegetables: "/food/mixed-vegetables.svg",
   spinach: "/food/spinach.svg",
 };

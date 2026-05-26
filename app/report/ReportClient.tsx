@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { getMissingRequiredMeals, requiredDailyMealNames } from "@/lib/mealRecordRules";
 import {
   Bar,
   BarChart,
@@ -112,6 +113,21 @@ function daysInclusive(startKey: string, endKey: string) {
   return Math.floor(ms / 86400000) + 1;
 }
 
+function dateKeysBetween(startKey: string, endKey: string) {
+  const safeStart = startKey <= endKey ? startKey : endKey;
+  const safeEnd = startKey <= endKey ? endKey : startKey;
+  const cursor = dateKeyToDate(safeStart);
+  const end = dateKeyToDate(safeEnd);
+  if (Number.isNaN(cursor.getTime()) || Number.isNaN(end.getTime())) return [];
+
+  const keys: string[] = [];
+  for (let guard = 0; cursor <= end && guard < 3660; guard += 1) {
+    keys.push(toDateKey(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return keys;
+}
+
 const chartTooltipStyle = {
   borderRadius: 8,
   border: "1px solid #ead8e2",
@@ -196,6 +212,39 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
 
     return sortRecordsByDate(reportRecords.filter((record) => record.date >= startKey && record.date <= endKey));
   }, [customEnd, customStart, preset, reportRecords]);
+
+  const coverageDateKeys = useMemo(() => {
+    const todayDate = new Date();
+    const todayKey = toDateKey(todayDate);
+
+    if (preset === "today") return [todayKey];
+    if (preset === "week") return dateKeysBetween(toDateKey(startOfWeek(todayDate)), todayKey);
+    if (preset === "month") return dateKeysBetween(toDateKey(startOfMonth(todayDate)), todayKey);
+    if (preset === "custom") {
+      if (!customStart || !customEnd) return [];
+      return dateKeysBetween(customStart, customEnd);
+    }
+
+    const dates = reportRecords.map((record) => record.date).sort((a, b) => a.localeCompare(b));
+    return dates.length ? dateKeysBetween(dates[0], todayKey) : [todayKey];
+  }, [customEnd, customStart, preset, reportRecords]);
+
+  const requiredMealCoverage = useMemo(
+    () =>
+      coverageDateKeys
+        .map((date) => {
+          const missingMeals = getMissingRequiredMeals(reportRecords, date);
+          return {
+            date,
+            loggedCount: requiredDailyMealNames.length - missingMeals.length,
+            missingMeals,
+          };
+        })
+        .sort((a, b) => b.date.localeCompare(a.date)),
+    [coverageDateKeys, reportRecords],
+  );
+  const incompleteRequiredMealDays = requiredMealCoverage.filter((day) => day.missingMeals.length > 0);
+  const completeRequiredMealDays = requiredMealCoverage.length - incompleteRequiredMealDays.length;
 
   const totalConsumed = filteredRecords.reduce((sum, record) => sum + record.totalConsumedCalories, 0);
   const totalMealCalories = filteredRecords.reduce((sum, record) => sum + record.totalMealCalories, 0);
@@ -489,6 +538,43 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
           <Metric label="Carb (consumed)" value={`${formatNumber(sumNutrition(filteredRecords, "carbs"))} g`} />
           <Metric label="Fat (consumed)" value={`${formatNumber(sumNutrition(filteredRecords, "fat"))} g`} />
           <Metric label="Fibre (consumed)" value={`${formatNumber(sumNutrition(filteredRecords, "fiber"))} g`} />
+        </section>
+
+        <section className="soft-card p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-black text-[#633d55]">Required meal check</p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-[#765066]">
+                Daily record target: {requiredDailyMealNames.join(", ")}.
+              </p>
+            </div>
+            <p className="rounded-full bg-[#fff0d7] px-3 py-1 text-xs font-black text-[#7a4a20]">
+              {completeRequiredMealDays}/{requiredMealCoverage.length || 1} complete day(s)
+            </p>
+          </div>
+
+          {incompleteRequiredMealDays.length ? (
+            <div className="mt-4 divide-y divide-[#f0dce7] overflow-hidden rounded-[8px] border border-[#ead8e2] bg-white/60">
+              {incompleteRequiredMealDays.slice(0, 8).map((day) => (
+                <div key={day.date} className="flex flex-wrap items-center justify-between gap-2 px-3 py-3">
+                  <div>
+                    <p className="text-sm font-black text-[#633d55]">{day.date}</p>
+                    <p className="mt-1 text-xs font-bold text-[#765066]">{day.loggedCount}/4 required meal(s) logged</p>
+                  </div>
+                  <p className="text-sm font-black text-[#9c2f45]">Missing: {day.missingMeals.join(", ")}</p>
+                </div>
+              ))}
+              {incompleteRequiredMealDays.length > 8 ? (
+                <p className="px-3 py-3 text-xs font-bold text-[#765066]">
+                  {incompleteRequiredMealDays.length - 8} more day(s) are missing required meals in this range.
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <p className="mt-4 rounded-[8px] border border-[#b9e5c2] bg-[#f2fff1] p-3 text-sm font-bold text-[#356f3f]">
+              All days in this range have Breakfast, Lunch, Afternoon tea, and Dinner logged.
+            </p>
+          )}
         </section>
 
         <section className="grid gap-3 lg:grid-cols-2">

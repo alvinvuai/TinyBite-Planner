@@ -208,6 +208,8 @@ Record requirements:
 - `user` is always `"Dua"`.
 - Save date, meal name, selected ingredients, adjusted amounts, total meal calories, completion percentage, and total consumed calories.
 - `totalConsumedCalories = totalMealCalories * completionPercent / 100`.
+- Daily meal tracking should alert/report if Breakfast, Lunch, Afternoon tea, or Dinner is missing.
+- Do not allow duplicate saved records for the same date and meal name. If a same-day meal already exists, ask the user to edit/update the previous saved record instead of adding another.
 
 Ways to inspect records:
 
@@ -336,6 +338,7 @@ Known preferences:
 - Avoid pale text on pale backgrounds.
 - Avoid gradient button backgrounds unless specifically requested.
 - Ingredient chips should visibly light up/raise when selected.
+- Ingredient visuals must match the actual food. Do not let known ingredients fall back to broad category icons; add a specific emoji or a small SVG in `public/food/` when no good emoji exists.
 - Unit buttons must be compact on phone.
 - Voice button belongs at the far top-left, not inside the control cluster.
 - Main page should remain clean with selection on the left and editable quantities on the right for wider screens.
