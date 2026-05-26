@@ -352,6 +352,8 @@ Known preferences:
 - The old **Type foods** button/modal should stay removed; typed food entry belongs in the prompt bar.
 - Hide the **Whole day** planning option from the main UI unless Alvin asks to bring it back.
 - Keep **Tips** and **Calories Map** in the top menu beside **Report**.
+- Saved meal records should be editable from the report, not only date-changeable.
+- Food category headers should offer a quick way to clear selected foods nested inside that category.
 - Main page should remain clean with selection on the left and editable quantities on the right for wider screens.
 
 ## Git Workflow

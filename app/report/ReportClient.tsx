@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { getMissingRequiredMeals, requiredDailyMealNames } from "@/lib/mealRecordRules";
+import { caloriesFor, formatAmount, getIngredientDefinition, gramsFor, mealTypes } from "@/lib/nutrition";
 import {
   Bar,
   BarChart,
@@ -43,7 +44,11 @@ type ReportMealRecord = {
     name: string;
     amount: number;
     unit: string;
+    grams: number;
     calories: number;
+    suggestedAmount: number;
+    suggestedUnit: string;
+    suggestedCalories: number;
   }>;
   nutritionOffered: NutritionTotals;
   nutritionConsumed: NutritionTotals;
@@ -57,6 +62,38 @@ type UpdateDateResponse = {
     date?: string;
   };
   message?: string;
+};
+
+type SavedMealRecordResponse = {
+  record?: Omit<ReportMealRecord, "nutritionOffered" | "nutritionConsumed">;
+  existingRecord?: {
+    id: string;
+    date: string;
+    mealName: string;
+    completionPercent: number;
+    totalConsumedCalories: number;
+  };
+  message?: string;
+};
+
+type EditableMealIngredient = {
+  ingredientKey: string;
+  name: string;
+  amount: string;
+  unit: string;
+  grams: number;
+  calories: number;
+  suggestedAmount: number;
+  suggestedUnit: string;
+  suggestedCalories: number;
+};
+
+type EditableMealDraft = {
+  id: string;
+  date: string;
+  mealName: string;
+  completionPercent: number;
+  ingredients: EditableMealIngredient[];
 };
 
 type StandardProgress = {
@@ -137,6 +174,65 @@ const chartTooltipStyle = {
 };
 
 const recordsPerPage = 10;
+const editableMealTypes = mealTypes.filter((mealType) => mealType !== "Whole day plan");
+
+function baseNutritionTotals(): NutritionTotals {
+  return { protein: 0, carbs: 0, fat: 0, fiber: 0, iron: 0, zinc: 0, calcium: 0, omega3: 0 };
+}
+
+function enrichRecord(record: Omit<ReportMealRecord, "nutritionOffered" | "nutritionConsumed">): ReportMealRecord {
+  const offered = record.ingredients.reduce((totals, ingredient) => {
+    const definition = getIngredientDefinition(ingredient.ingredientKey) || getIngredientDefinition(ingredient.name);
+    if (!definition || ingredient.grams <= 0) return totals;
+    const factor = ingredient.grams / 100;
+    return {
+      protein: totals.protein + definition.nutrientsPer100g.protein * factor,
+      carbs: totals.carbs + definition.nutrientsPer100g.carbs * factor,
+      fat: totals.fat + definition.nutrientsPer100g.fat * factor,
+      fiber: totals.fiber + definition.nutrientsPer100g.fiber * factor,
+      iron: totals.iron + definition.nutrientsPer100g.iron * factor,
+      zinc: totals.zinc + definition.nutrientsPer100g.zinc * factor,
+      calcium: totals.calcium + definition.nutrientsPer100g.calcium * factor,
+      omega3: totals.omega3 + definition.nutrientsPer100g.omega3 * factor,
+    };
+  }, baseNutritionTotals());
+  const consumedFactor = Math.max(0, Math.min(1, record.completionPercent / 100));
+
+  return {
+    ...record,
+    nutritionOffered: offered,
+    nutritionConsumed: {
+      protein: offered.protein * consumedFactor,
+      carbs: offered.carbs * consumedFactor,
+      fat: offered.fat * consumedFactor,
+      fiber: offered.fiber * consumedFactor,
+      iron: offered.iron * consumedFactor,
+      zinc: offered.zinc * consumedFactor,
+      calcium: offered.calcium * consumedFactor,
+      omega3: offered.omega3 * consumedFactor,
+    },
+  };
+}
+
+function toEditableMealDraft(record: ReportMealRecord): EditableMealDraft {
+  return {
+    id: record.id,
+    date: record.date,
+    mealName: editableMealTypes.includes(record.mealName) ? record.mealName : "Breakfast",
+    completionPercent: record.completionPercent,
+    ingredients: record.ingredients.map((ingredient) => ({
+      ingredientKey: ingredient.ingredientKey,
+      name: ingredient.name,
+      amount: formatAmount(ingredient.amount),
+      unit: ingredient.unit,
+      grams: ingredient.grams,
+      calories: ingredient.calories,
+      suggestedAmount: ingredient.suggestedAmount,
+      suggestedUnit: ingredient.suggestedUnit,
+      suggestedCalories: ingredient.suggestedCalories,
+    })),
+  };
+}
 
 function sumNutrition(records: ReportMealRecord[], key: keyof NutritionTotals) {
   return records.reduce((sum, record) => sum + record.nutritionConsumed[key], 0);
@@ -186,6 +282,9 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
   const [editDate, setEditDate] = useState(today);
   const [savingDateId, setSavingDateId] = useState<string | null>(null);
   const [editError, setEditError] = useState("");
+  const [editingMealDraft, setEditingMealDraft] = useState<EditableMealDraft | null>(null);
+  const [savingMealId, setSavingMealId] = useState<string | null>(null);
+  const [mealEditError, setMealEditError] = useState("");
   const [showRecords, setShowRecords] = useState(false);
   const [recordPreset, setRecordPreset] = useState<RecordPreset>("all");
   const [recordPage, setRecordPage] = useState(1);
@@ -402,6 +501,122 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
     }
   }
 
+  function startEditingMeal(record: ReportMealRecord) {
+    setEditingMealDraft(toEditableMealDraft(record));
+    setMealEditError("");
+    setEditingRecordId(null);
+    setEditError("");
+  }
+
+  function cancelEditingMeal() {
+    setEditingMealDraft(null);
+    setMealEditError("");
+  }
+
+  function updateEditingMeal(updater: (draft: EditableMealDraft) => EditableMealDraft) {
+    setEditingMealDraft((current) => (current ? updater(current) : current));
+    setMealEditError("");
+  }
+
+  function updateEditingIngredient(index: number, updater: (ingredient: EditableMealIngredient) => EditableMealIngredient) {
+    updateEditingMeal((draft) => ({
+      ...draft,
+      ingredients: draft.ingredients.map((ingredient, ingredientIndex) => {
+        if (ingredientIndex !== index) return ingredient;
+        const nextIngredient = updater(ingredient);
+        const definition = getIngredientDefinition(nextIngredient.ingredientKey) || getIngredientDefinition(nextIngredient.name);
+        if (!definition) {
+          return {
+            ...nextIngredient,
+            calories: Math.max(0, Math.round(nextIngredient.calories)),
+          };
+        }
+
+        const amount = Math.max(0, Number(nextIngredient.amount));
+        const unit = definition.units.find((unitOption) => unitOption.unit === nextIngredient.unit)?.unit || definition.units[0].unit;
+        const grams = gramsFor(definition, Number.isFinite(amount) ? amount : 0, unit);
+        return {
+          ...nextIngredient,
+          unit,
+          grams,
+          calories: caloriesFor(definition, grams),
+        };
+      }),
+    }));
+  }
+
+  function removeEditingIngredient(index: number) {
+    updateEditingMeal((draft) => ({ ...draft, ingredients: draft.ingredients.filter((_, ingredientIndex) => ingredientIndex !== index) }));
+  }
+
+  async function saveEditingMeal() {
+    if (!editingMealDraft) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(editingMealDraft.date)) {
+      setMealEditError("Choose a valid date.");
+      return;
+    }
+    if (!editingMealDraft.ingredients.length) {
+      setMealEditError("Keep at least one food in the saved meal.");
+      return;
+    }
+
+    const ingredients = editingMealDraft.ingredients.map((ingredient) => {
+      const amount = Number(ingredient.amount);
+      return {
+        ingredientKey: ingredient.ingredientKey,
+        name: ingredient.name,
+        amount: Number.isFinite(amount) ? Math.max(0, amount) : 0,
+        unit: ingredient.unit.trim() || "item",
+        grams: Math.max(0, ingredient.grams),
+        calories: Math.max(0, Math.round(ingredient.calories)),
+        suggestedAmount: Math.max(0, ingredient.suggestedAmount),
+        suggestedUnit: ingredient.suggestedUnit || ingredient.unit || "item",
+        suggestedCalories: Math.max(0, Math.round(ingredient.suggestedCalories)),
+      };
+    });
+    const totalMealCalories = ingredients.reduce((sum, ingredient) => sum + ingredient.calories, 0);
+
+    setSavingMealId(editingMealDraft.id);
+    setMealEditError("");
+
+    try {
+      const response = await fetch("/api/meal-records", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editingMealDraft.id,
+          date: editingMealDraft.date,
+          mealName: editingMealDraft.mealName,
+          completionPercent: editingMealDraft.completionPercent,
+          totalMealCalories,
+          ingredients,
+        }),
+      });
+      const text = await response.text();
+      let data: SavedMealRecordResponse = {};
+      if (text) {
+        try {
+          data = JSON.parse(text) as SavedMealRecordResponse;
+        } catch {
+          data = {};
+        }
+      }
+
+      if (!response.ok || !data.record) {
+        setMealEditError(data.message || "Saved meal could not be updated.");
+        return;
+      }
+
+      const updatedRecord = enrichRecord(data.record);
+      setReportRecords((current) => sortRecordsByDate(current.map((record) => (record.id === updatedRecord.id ? updatedRecord : record))));
+      setEditingMealDraft(null);
+    } catch {
+      setMealEditError("Saved meal could not be updated. Please try again.");
+    } finally {
+      setSavingMealId(null);
+    }
+  }
+
   function renderDateEditor(record: ReportMealRecord, layout: "table" | "card") {
     if (editingRecordId !== record.id) {
       return (
@@ -451,6 +666,22 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
           </button>
         </div>
         {editError ? <p className="text-xs font-bold text-[#9c2f45]">{editError}</p> : null}
+      </div>
+    );
+  }
+
+  function renderRecordActions(record: ReportMealRecord, layout: "table" | "card") {
+    const editButtonClass =
+      layout === "card"
+        ? "pressable min-h-11 w-full rounded-full bg-[#9c456c] px-4 py-2 text-sm font-black text-white shadow-sm"
+        : "pressable whitespace-nowrap rounded-full bg-[#9c456c] px-4 py-2 text-xs font-black text-white shadow-sm";
+
+    return (
+      <div className={layout === "card" ? "space-y-3" : "space-y-2"}>
+        <button type="button" onClick={() => startEditingMeal(record)} className={editButtonClass}>
+          Edit meal
+        </button>
+        {renderDateEditor(record, layout)}
       </div>
     );
   }
@@ -725,7 +956,7 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
               <div>
                 <p className="text-sm font-black text-[#633d55]">Saved meals for user Dua</p>
                 <p className="mt-1 text-xs font-semibold text-[#765066]">
-                  Records are hidden by default. Open them when you need to review or change a saved date.
+                  Records are hidden by default. Open them when you need to review or edit a saved meal.
                 </p>
               </div>
               <button
@@ -735,6 +966,8 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
                   setRecordPage(1);
                   setEditingRecordId(null);
                   setEditError("");
+                  setEditingMealDraft(null);
+                  setMealEditError("");
                 }}
                 className="pressable min-h-11 rounded-full bg-[#633d55] px-5 py-2 text-sm font-black text-white shadow-sm"
                 aria-expanded={showRecords}
@@ -787,7 +1020,7 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
                         <p className="text-xs font-black uppercase tracking-[0.08em] text-[#9c456c]">{record.date}</p>
                         <h2 className="mt-1 text-lg font-black text-[#633d55]">{record.mealName}</h2>
                       </div>
-                      <div className="min-w-[9rem] flex-1 sm:max-w-[14rem]">{renderDateEditor(record, "card")}</div>
+                      <div className="min-w-[9rem] flex-1 sm:max-w-[14rem]">{renderRecordActions(record, "card")}</div>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2 text-center">
@@ -844,7 +1077,7 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
                         <IngredientList record={record} />
                       </td>
                       <td className="px-4 py-3">
-                        {renderDateEditor(record, "table")}
+                        {renderRecordActions(record, "table")}
                       </td>
                     </tr>
                   ))}
@@ -861,6 +1094,182 @@ export function ReportClient({ records, storageName }: { records: ReportMealReco
             </>
           ) : null}
         </section>
+
+        {editingMealDraft ? (
+          <div className="fixed inset-0 z-50 grid place-items-end bg-[#51354a]/20 p-3 backdrop-blur-sm sm:place-items-center">
+            <section className="soft-card max-h-[90vh] w-full max-w-2xl overflow-auto p-4">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.1em] text-[#9c456c]">Saved meal</p>
+                  <h2 className="mt-1 text-xl font-black text-[#633d55]">Edit meal record</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={cancelEditingMeal}
+                  disabled={savingMealId === editingMealDraft.id}
+                  className="pressable grid h-10 w-10 place-items-center rounded-full bg-white/76 font-black text-[#9c456c] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  x
+                </button>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block space-y-2">
+                  <span className="text-sm font-black text-[#633d55]">Date</span>
+                  <input
+                    type="date"
+                    value={editingMealDraft.date}
+                    onChange={(event) => updateEditingMeal((draft) => ({ ...draft, date: event.currentTarget.value }))}
+                    className="min-h-11 w-full rounded-[8px] border border-[#ead8e2] bg-white px-3 text-sm font-bold text-[#633d55]"
+                  />
+                </label>
+
+                <label className="block space-y-2">
+                  <span className="text-sm font-black text-[#633d55]">Meal</span>
+                  <select
+                    value={editingMealDraft.mealName}
+                    onChange={(event) => updateEditingMeal((draft) => ({ ...draft, mealName: event.currentTarget.value }))}
+                    className="min-h-11 w-full rounded-[8px] border border-[#ead8e2] bg-white px-3 text-sm font-bold text-[#633d55]"
+                  >
+                    {editableMealTypes.map((mealType) => (
+                      <option key={mealType}>{mealType}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="mt-4 rounded-[8px] border border-[#ead8e2] bg-white/70 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-black text-[#633d55]">Estimated completion</p>
+                  <p className="text-2xl font-black text-[#9c456c]">{editingMealDraft.completionPercent}%</p>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={editingMealDraft.completionPercent}
+                  onChange={(event) => updateEditingMeal((draft) => ({ ...draft, completionPercent: Number(event.currentTarget.value) }))}
+                  className="tiny-slider mt-4"
+                  style={{
+                    background: `linear-gradient(90deg, #b84a78 0 ${editingMealDraft.completionPercent}%, #f7ddea ${editingMealDraft.completionPercent}% 100%)`,
+                  }}
+                />
+                <p className="mt-3 text-sm font-semibold text-[#765066]">
+                  Offered {editingMealDraft.ingredients.reduce((sum, ingredient) => sum + ingredient.calories, 0)} kcal. Estimated eaten{" "}
+                  {Math.round((editingMealDraft.ingredients.reduce((sum, ingredient) => sum + ingredient.calories, 0) * editingMealDraft.completionPercent) / 100)} kcal.
+                </p>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <p className="text-sm font-black text-[#633d55]">Foods in this saved meal</p>
+                {editingMealDraft.ingredients.map((ingredient, index) => {
+                  const definition = getIngredientDefinition(ingredient.ingredientKey) || getIngredientDefinition(ingredient.name);
+                  return (
+                    <div key={`${ingredient.ingredientKey}-${index}`} className="rounded-[8px] border border-[#ead8e2] bg-white/70 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black text-[#633d55]">{ingredient.name}</p>
+                          <p className="mt-1 text-xs font-bold text-[#765066]">
+                            {ingredient.calories} kcal{definition ? `, ${formatNumber(ingredient.grams, 0)} g` : ""}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeEditingIngredient(index)}
+                          className="pressable min-h-9 rounded-full border border-[#efd09a] bg-[#fff0d0] px-3 py-1 text-xs font-black text-[#704315]"
+                        >
+                          Remove
+                        </button>
+                      </div>
+
+                      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                        <label className="block space-y-1">
+                          <span className="text-xs font-black uppercase tracking-[0.08em] text-[#9c456c]">Amount</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step={definition?.units.find((unit) => unit.unit === ingredient.unit)?.step ?? 0.5}
+                            value={ingredient.amount}
+                            onChange={(event) => updateEditingIngredient(index, (item) => ({ ...item, amount: event.currentTarget.value }))}
+                            className="min-h-10 w-full rounded-[8px] border border-[#ead8e2] bg-white px-3 text-sm font-bold text-[#633d55]"
+                          />
+                        </label>
+
+                        <label className="block space-y-1">
+                          <span className="text-xs font-black uppercase tracking-[0.08em] text-[#9c456c]">Unit</span>
+                          {definition ? (
+                            <select
+                              value={ingredient.unit}
+                              onChange={(event) => updateEditingIngredient(index, (item) => ({ ...item, unit: event.currentTarget.value }))}
+                              className="min-h-10 w-full rounded-[8px] border border-[#ead8e2] bg-white px-3 text-sm font-bold text-[#633d55]"
+                            >
+                              {definition.units.map((unit) => (
+                                <option key={unit.unit} value={unit.unit}>
+                                  {unit.label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              value={ingredient.unit}
+                              onChange={(event) => updateEditingIngredient(index, (item) => ({ ...item, unit: event.currentTarget.value }))}
+                              className="min-h-10 w-full rounded-[8px] border border-[#ead8e2] bg-white px-3 text-sm font-bold text-[#633d55]"
+                            />
+                          )}
+                        </label>
+
+                        {!definition ? (
+                          <label className="block space-y-1">
+                            <span className="text-xs font-black uppercase tracking-[0.08em] text-[#9c456c]">Kcal</span>
+                            <input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={ingredient.calories}
+                              onChange={(event) =>
+                                updateEditingIngredient(index, (item) => ({ ...item, calories: Number(event.currentTarget.value), grams: item.grams }))
+                              }
+                              className="min-h-10 w-full rounded-[8px] border border-[#ead8e2] bg-white px-3 text-sm font-bold text-[#633d55]"
+                            />
+                          </label>
+                        ) : (
+                          <div className="flex items-end">
+                            <p className="min-h-10 rounded-[8px] bg-[#fff8fb] px-3 py-2 text-sm font-black text-[#8a5422]">{ingredient.calories} kcal</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {mealEditError ? (
+                <p className="mt-4 rounded-[8px] border border-[#f0c37c] bg-[#fff7e8] p-3 text-sm font-bold leading-6 text-[#7a4a20]">{mealEditError}</p>
+              ) : null}
+
+              <div className="mt-4 flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={cancelEditingMeal}
+                  disabled={savingMealId === editingMealDraft.id}
+                  className="pressable min-h-11 rounded-full border border-[#e7ccd9] bg-white px-5 py-2 text-sm font-black text-[#633d55] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveEditingMeal}
+                  disabled={savingMealId === editingMealDraft.id}
+                  className="pressable min-h-11 rounded-full bg-[#633d55] px-5 py-2 text-sm font-black text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingMealId === editingMealDraft.id ? "Saving..." : "Save meal"}
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
       </div>
     </main>
   );

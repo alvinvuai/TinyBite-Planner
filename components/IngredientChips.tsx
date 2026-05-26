@@ -71,19 +71,35 @@ export function IngredientChips({ mealType, selected, onChange }: IngredientChip
     onChange(selected.includes(ingredient) ? selected.filter((item) => item !== ingredient) : [...selected, ingredient]);
   }
 
+  function clearCategory(ingredientNames: string[]) {
+    const categorySet = new Set(ingredientNames);
+    onChange(selected.filter((item) => !categorySet.has(item)));
+  }
+
   return (
     <div className="space-y-4">
       {groupOrder.map((category) => {
         const group = ingredients.filter((ingredient) => ingredient.category === category);
         if (!group.length) return null;
         const style = categoryStyles[category];
+        const selectedCount = group.filter((ingredient) => selected.includes(ingredient.name)).length;
         return (
           <section key={category} className="rounded-[8px] border bg-white/76 p-3 shadow-sm" style={{ borderColor: style.border }}>
-            <div className="mb-3 flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ background: style.dot }} />
-              <p className="text-xs font-black uppercase tracking-[0.08em]" style={{ color: style.text }}>
-                {categoryLabels[category]}
-              </p>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="h-2.5 w-2.5 flex-none rounded-full" style={{ background: style.dot }} />
+                <p className="truncate text-xs font-black uppercase tracking-[0.08em]" style={{ color: style.text }}>
+                  {categoryLabels[category]}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => clearCategory(group.map((ingredient) => ingredient.name))}
+                disabled={!selectedCount}
+                className="pressable min-h-8 flex-none rounded-full border border-[#ead8e2] bg-white px-3 py-1 text-[11px] font-black text-[#633d55] disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                Clear {selectedCount ? `(${selectedCount})` : ""}
+              </button>
             </div>
             <div className="grid grid-cols-2 gap-3">
               {group.map((ingredient) => {
