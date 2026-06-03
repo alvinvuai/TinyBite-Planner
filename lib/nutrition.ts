@@ -133,6 +133,18 @@ export const ingredientDefinitions: IngredientDefinition[] = [
     note: "One large egg is estimated at 50 g without shell.",
   },
   {
+    key: "quail_egg",
+    name: "Quail egg",
+    aliases: ["quail egg", "quail eggs"],
+    category: "protein",
+    caloriesPer100g: 158,
+    defaultAmount: 3,
+    defaultUnit: "quail_egg",
+    units: [piece("quail egg", 9, 1), gramUnit(5)],
+    nutrientsPer100g: n({ protein: 13.1, carbs: 0.4, fat: 11.1, iron: 3.7, zinc: 1.5, calcium: 64, omega3: 44 }),
+    note: "Quail egg estimate; one peeled quail egg is estimated at 9 g. Cook fully and cut safely.",
+  },
+  {
     key: "cheese",
     name: "Cheese",
     aliases: ["cheese", "cheddar"],
@@ -668,6 +680,10 @@ function hasAnyCheese(keys: Set<string>) {
   return keys.has("cheese") || keys.has("laughing_cow_cheese");
 }
 
+function hasAnyEgg(keys: Set<string>) {
+  return keys.has("egg") || keys.has("quail_egg");
+}
+
 function hasAnyChicken(keys: Set<string>) {
   return keys.has("chicken") || keys.has("chicken_thigh") || keys.has("chicken_drumstick");
 }
@@ -851,25 +867,25 @@ export function suggestMeals(ingredients: MealBuilderItem[], mealType: string): 
   const suggestions: SuggestedMeal[] = [];
   const type = mealType === "Whole day plan" ? "Breakfast" : mealType;
 
-  if (keys.has("egg") && hasAnyRice(keys)) {
+  if (hasAnyEgg(keys) && hasAnyRice(keys)) {
     suggestions.push({
       id: "egg-rice-fingers",
       title: "Soft Egg Rice Fingers",
       subtitle: "Rice patties with egg kept soft and easy to hold.",
       mealType: type,
-      ingredients: ["Rice", "Egg", hasAnyCheese(keys) ? "Cheese" : "Butter or oil"],
+      ingredients: ["Rice", keys.has("quail_egg") ? "Quail egg" : "Egg", hasAnyCheese(keys) ? "Cheese" : "Butter or oil"],
       steps: ["Mix a small amount of rice with egg.", "Cook as soft mini patties.", "Let cool and cut into finger strips."],
       safety: "Serve soft and cool enough. Keep some plain rice separate if mixed protein is rejected.",
     });
   }
 
-  if (keys.has("egg") && (hasAnyCheese(keys) || hasAnyOil(keys) || keys.has("butter"))) {
+  if (hasAnyEgg(keys) && (hasAnyCheese(keys) || hasAnyOil(keys) || keys.has("butter"))) {
     suggestions.push({
       id: "mini-omelette-strips",
       title: "Mini Omelette Strips",
       subtitle: "A soft protein-first finger food with a little energy-rich fat.",
       mealType: type,
-      ingredients: ["Egg", hasAnyCheese(keys) ? "Cheese" : "Yoghurt", hasAnyOil(keys) ? "Oil" : "Butter"],
+      ingredients: [keys.has("quail_egg") ? "Quail egg" : "Egg", hasAnyCheese(keys) ? "Cheese" : "Yoghurt", hasAnyOil(keys) ? "Oil" : "Butter"],
       steps: ["Whisk egg with cheese if using.", "Cook gently in a little fat.", "Slice into soft strips."],
       safety: "Cook egg fully and cut into toddler-safe strips.",
     });
@@ -949,6 +965,7 @@ export function summarizeMeal(items: MealBuilderItem[], mealType = "Breakfast"):
       if (
         [
           "egg",
+          "quail_egg",
           "cheese",
           "laughing_cow_cheese",
           "yoghurt",

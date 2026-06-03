@@ -347,6 +347,7 @@ Known preferences:
 - Avoid gradient button backgrounds unless specifically requested.
 - Ingredient chips should visibly light up/raise when selected.
 - Ingredient visuals must match the actual food. Do not let known ingredients fall back to broad category icons; add a specific emoji or a small SVG in `public/food/` when no good emoji exists.
+- Quail egg is a first-class protein food and should remain available with a quail egg unit, not just as generic egg.
 - Unit buttons must be compact on phone.
 - Voice input should stay in the main prompt bar beside the send/enter button.
 - The old **Type foods** button/modal should stay removed; typed food entry belongs in the prompt bar.

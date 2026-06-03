@@ -10,6 +10,7 @@ const foodIcons: Record<string, string> = {
   rice: "🍚",
   glutinous_rice: "🍙",
   egg: "🥚",
+  quail_egg: "🥚",
   cheese: "🧀",
   yoghurt: "🥣",
   fresh_cow_milk: "🥛",
