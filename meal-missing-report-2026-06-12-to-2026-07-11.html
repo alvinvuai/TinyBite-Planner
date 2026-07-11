@@ -1,0 +1,752 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dưa Béo Meal Missing Report</title>
+  <style>
+    :root { color-scheme: light; --plum: #4b254a; --ink: #251f25; --muted: #71626f; --line: #eadde8; --pink: #fff6fa; --ok: #e9f8ef; --warn: #fff5d9; --empty: #ffe9e9; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: #fffafc; color: var(--ink); }
+    header { padding: 32px 20px 18px; background: linear-gradient(180deg, #fff3f8, #fffafc); border-bottom: 1px solid var(--line); }
+    main { max-width: 1120px; margin: 0 auto; padding: 24px 18px 48px; }
+    .hero { max-width: 1120px; margin: 0 auto; }
+    h1 { margin: 0 0 8px; color: var(--plum); font-size: clamp(28px, 4vw, 42px); letter-spacing: 0; }
+    p { margin: 0; color: var(--muted); line-height: 1.5; }
+    .summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .card { background: white; border: 1px solid var(--line); border-radius: 8px; padding: 16px; box-shadow: 0 8px 22px rgba(75, 37, 74, 0.06); }
+    .card strong { display: block; color: var(--plum); font-size: 26px; margin-bottom: 4px; }
+    .card span { color: var(--muted); font-size: 13px; }
+    .meal-counts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0 0 22px; }
+    .meal-counts div { background: var(--pink); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+    .meal-counts strong { color: var(--plum); }
+    .note { margin-bottom: 20px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: white; }
+    .day { background: white; border: 1px solid var(--line); border-left-width: 6px; border-radius: 8px; padding: 16px; margin-bottom: 14px; box-shadow: 0 8px 22px rgba(75, 37, 74, 0.04); }
+    .day.ok { border-left-color: #42a66a; }
+    .day.warn { border-left-color: #e0a121; }
+    .day.empty { border-left-color: #d95b62; }
+    .day-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+    h2 { margin: 0; color: var(--plum); font-size: 20px; }
+    .pill { white-space: nowrap; border-radius: 999px; padding: 7px 10px; background: var(--pink); color: var(--plum); font-weight: 700; font-size: 13px; }
+    .missing, .duplicate { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: var(--warn); color: #61420d; }
+    .duplicate { background: #f1edff; color: #42336a; }
+    ul { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+    li { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 4px; }
+    li span, li small { color: var(--muted); line-height: 1.45; }
+    footer { max-width: 1120px; margin: 0 auto; padding: 0 18px 28px; color: var(--muted); font-size: 12px; }
+    @media (max-width: 760px) { .summary, .meal-counts { grid-template-columns: 1fr 1fr; } .day-head { flex-direction: column; } .pill { white-space: normal; } }
+    @media (max-width: 460px) { .summary, .meal-counts { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header><div class="hero"><h1>Dưa Béo Meal Missing Report</h1><p>Required daily meals checked: Breakfast, Lunch, Afternoon tea, and Dinner.</p><p>Period: 2026-06-12 to 2026-07-11. Generated: Saturday, 11 July 2026 at 12:30 pm. Source: Neon Postgres.</p></div></header>
+  <main>
+    
+    <section class="summary">
+      <div class="card"><strong>30</strong><span>days checked</span></div>
+      <div class="card"><strong>2</strong><span>complete days</span></div>
+      <div class="card"><strong>19</strong><span>partial days</span></div>
+      <div class="card"><strong>9</strong><span>days with no records</span></div>
+      <div class="card"><strong>78</strong><span>saved meal records</span></div>
+    </section>
+    <section class="meal-counts">
+      <div><strong>Breakfast</strong><br><span>11 days missing</span></div>
+<div><strong>Lunch</strong><br><span>11 days missing</span></div>
+<div><strong>Afternoon tea</strong><br><span>28 days missing</span></div>
+<div><strong>Dinner</strong><br><span>11 days missing</span></div>
+    </section>
+    <div class="note"><strong>Total calories recorded:</strong> 10513 kcal consumed from 13674 kcal planned. No duplicate same-day meal names found in this period.</div>
+    
+    <section class="day warn">
+      <div class="day-head">
+        <div><h2>Fri, 12 June 2026</h2><p>2026-06-12</p></div>
+        <span class="pill">1 required missing</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Afternoon tea</div>
+      
+      <ul>
+    <li>
+      <strong>Bedtime milk/yoghurt</strong>
+      <span>90 / 120 kcal consumed, 75% completed</span>
+      <small>PediaSure milk (120 ml, 120 kcal)</small>
+    </li>
+    <li>
+      <strong>Breakfast</strong>
+      <span>108 / 215 kcal consumed, 50% completed</span>
+      <small>Egg (1 egg, 72 kcal); Jasmine rice (cooked) (8 tbsp, 103 kcal); Avocado oil (1 tsp, 40 kcal)</small>
+    </li>
+    <li>
+      <strong>Dinner</strong>
+      <span>211 / 248 kcal consumed, 85% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Quail legs (1 item, 100 kcal); Butter (1 tsp, 34 kcal); Vegetables (30 g, 11 kcal)</small>
+    </li>
+    <li>
+      <strong>Lunch</strong>
+      <span>300 / 300 kcal consumed, 100% completed</span>
+      <small>Lunch, tea break at chilcare (1 item, 300 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day warn">
+      <div class="day-head">
+        <div><h2>Sat, 13 June 2026</h2><p>2026-06-13</p></div>
+        <span class="pill">1 required missing</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Afternoon tea</div>
+      
+      <ul>
+    <li>
+      <strong>Bedtime milk/yoghurt</strong>
+      <span>160 / 160 kcal consumed, 100% completed</span>
+      <small>PediaSure milk (160 ml, 160 kcal)</small>
+    </li>
+    <li>
+      <strong>Breakfast</strong>
+      <span>79 / 157 kcal consumed, 50% completed</span>
+      <small>Bread (1 slice, 74 kcal); Egg (1 egg, 72 kcal); Vegetables (30 g, 11 kcal)</small>
+    </li>
+    <li>
+      <strong>Dinner</strong>
+      <span>176 / 234 kcal consumed, 75% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Crabs (1 item, 60 kcal); Pork and vege soup (100 g, 60 kcal); Vegetables (30 g, 11 kcal)</small>
+    </li>
+    <li>
+      <strong>Lunch</strong>
+      <span>197 / 303 kcal consumed, 65% completed</span>
+      <small>Jasmine rice (cooked) (5 tbsp, 64 kcal); Egg (1 egg, 72 kcal); Cheese (15 g, 60 kcal); Full-fat yoghurt (100 g, 61 kcal); Grape (10 quartered_grape, 35 kcal); Carrot (cooked) (30 g, 11 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day ok">
+      <div class="day-head">
+        <div><h2>Sun, 14 June 2026</h2><p>2026-06-14</p></div>
+        <span class="pill">Complete</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> None</div>
+      
+      <ul>
+    <li>
+      <strong>Afternoon tea</strong>
+      <span>87 / 87 kcal consumed, 100% completed</span>
+      <small>Banh bao (1 item, 60 kcal); The Laughing Cow cheese wedge (1 wedge, 27 kcal)</small>
+    </li>
+    <li>
+      <strong>Bedtime milk/yoghurt</strong>
+      <span>80 / 80 kcal consumed, 100% completed</span>
+      <small>PediaSure milk (80 ml, 80 kcal)</small>
+    </li>
+    <li>
+      <strong>Breakfast</strong>
+      <span>250 / 250 kcal consumed, 100% completed</span>
+      <small>Oat (1 item, 50 kcal); Butter (1 tsp, 34 kcal); Blueberries (1 item, 50 kcal); Peanut butter (0.5 tsp, 16 kcal); PediaSure milk (100 ml, 100 kcal)</small>
+    </li>
+    <li>
+      <strong>Dinner</strong>
+      <span>155 / 194 kcal consumed, 80% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Chicken liver heart (1 item, 80 kcal); Vegetables (30 g, 11 kcal)</small>
+    </li>
+    <li>
+      <strong>Lunch</strong>
+      <span>167 / 167 kcal consumed, 100% completed</span>
+      <small>Egg (1 egg, 72 kcal); Beans / lentils (30 g, 35 kcal); Banh bao (1 item, 60 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day warn">
+      <div class="day-head">
+        <div><h2>Mon, 15 June 2026</h2><p>2026-06-15</p></div>
+        <span class="pill">1 required missing</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Afternoon tea</div>
+      
+      <ul>
+    <li>
+      <strong>Breakfast</strong>
+      <span>223 / 223 kcal consumed, 100% completed</span>
+      <small>Oat (1 item, 50 kcal); PediaSure milk (100 ml, 100 kcal); Butter (1 tsp, 34 kcal); Peanut butter (1 tsp, 31 kcal); Strawberry (2 strawberry, 8 kcal)</small>
+    </li>
+    <li>
+      <strong>Dinner</strong>
+      <span>201 / 201 kcal consumed, 100% completed</span>
+      <small>Jasmine rice (cooked) (4 tbsp, 51 kcal); Chicken drumstick (40 g, 69 kcal); Crab meat (1 item, 30 kcal); Vegetables (30 g, 11 kcal); Olive oil (1 tsp, 40 kcal)</small>
+    </li>
+    <li>
+      <strong>Lunch</strong>
+      <span>300 / 300 kcal consumed, 100% completed</span>
+      <small>Lunch, afternoon tea at chilcare (1 item, 300 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day ok">
+      <div class="day-head">
+        <div><h2>Tue, 16 June 2026</h2><p>2026-06-16</p></div>
+        <span class="pill">Complete</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> None</div>
+      
+      <ul>
+    <li>
+      <strong>Afternoon tea</strong>
+      <span>80 / 80 kcal consumed, 100% completed</span>
+      <small>PediaSure milk (80 ml, 80 kcal)</small>
+    </li>
+    <li>
+      <strong>Bedtime milk/yoghurt</strong>
+      <span>120 / 120 kcal consumed, 100% completed</span>
+      <small>PediaSure milk (120 ml, 120 kcal)</small>
+    </li>
+    <li>
+      <strong>Breakfast</strong>
+      <span>113 / 189 kcal consumed, 60% completed</span>
+      <small>Jasmine rice (cooked) (6 tbsp, 77 kcal); Egg (1 egg, 72 kcal); Olive oil (1 tsp, 40 kcal)</small>
+    </li>
+    <li>
+      <strong>Dinner</strong>
+      <span>98 / 163 kcal consumed, 60% completed</span>
+      <small>Jasmine rice (cooked) (5 tbsp, 64 kcal); Pork (20 g, 48 kcal); Vegetables (30 g, 11 kcal); Avocado oil (1 tsp, 40 kcal)</small>
+    </li>
+    <li>
+      <strong>Lunch</strong>
+      <span>248 / 248 kcal consumed, 100% completed</span>
+      <small>Oat (1 item, 50 kcal); Egg (1 egg, 72 kcal); Butter (1 tsp, 34 kcal); Peanut butter (1 tsp, 31 kcal); Banana (0.5 banana, 53 kcal); Strawberry (2 strawberry, 8 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day warn">
+      <div class="day-head">
+        <div><h2>Wed, 17 June 2026</h2><p>2026-06-17</p></div>
+        <span class="pill">1 required missing</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Afternoon tea</div>
+      
+      <ul>
+    <li>
+      <strong>Breakfast</strong>
+      <span>204 / 204 kcal consumed, 100% completed</span>
+      <small>Quail egg (5 quail_egg, 71 kcal); Avocado (4 slice, 96 kcal); Bread (0.5 slice, 37 kcal)</small>
+    </li>
+    <li>
+      <strong>Dessert after lunch</strong>
+      <span>80 / 80 kcal consumed, 100% completed</span>
+      <small>Pediasure milk (1 item, 80 kcal)</small>
+    </li>
+    <li>
+      <strong>Dinner</strong>
+      <span>282 / 282 kcal consumed, 100% completed</span>
+      <small>Jasmine rice (cooked) (5 tbsp, 64 kcal); Egg (1 egg, 72 kcal); Cheese (15 g, 60 kcal); Vegetables (30 g, 11 kcal); Full-fat yoghurt (100 g, 61 kcal); Grape (4 quartered_grape, 14 kcal)</small>
+    </li>
+    <li>
+      <strong>Lunch</strong>
+      <span>83 / 139 kcal consumed, 60% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Prawn (25 g, 25 kcal); Carrot (cooked) (30 g, 11 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day warn">
+      <div class="day-head">
+        <div><h2>Thu, 18 June 2026</h2><p>2026-06-18</p></div>
+        <span class="pill">1 required missing</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Afternoon tea</div>
+      
+      <ul>
+    <li>
+      <strong>Bedtime milk/yoghurt</strong>
+      <span>80 / 80 kcal consumed, 100% completed</span>
+      <small>PediaSure milk (80 ml, 80 kcal)</small>
+    </li>
+    <li>
+      <strong>Breakfast</strong>
+      <span>0 / 110 kcal consumed, 0% completed</span>
+      <small>Quail egg (5 quail_egg, 71 kcal); Jasmine rice (cooked) (3 tbsp, 39 kcal)</small>
+    </li>
+    <li>
+      <strong>Dinner</strong>
+      <span>40 / 202 kcal consumed, 20% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Pork (20 g, 48 kcal); Vegetables (30 g, 11 kcal); Avocado oil (1 tsp, 40 kcal)</small>
+    </li>
+    <li>
+      <strong>Lunch</strong>
+      <span>85 / 169 kcal consumed, 50% completed</span>
+      <small>Oat (1 item, 50 kcal); Full-fat yoghurt (100 g, 61 kcal); Butter (1 tsp, 34 kcal); Strawberry (2 strawberry, 8 kcal); Peanut butter (0.5 tsp, 16 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day warn">
+      <div class="day-head">
+        <div><h2>Fri, 19 June 2026</h2><p>2026-06-19</p></div>
+        <span class="pill">1 required missing</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Afternoon tea</div>
+      
+      <ul>
+    <li>
+      <strong>Bedtime milk/yoghurt</strong>
+      <span>80 / 80 kcal consumed, 100% completed</span>
+      <small>PediaSure milk (80 ml, 80 kcal)</small>
+    </li>
+    <li>
+      <strong>Breakfast</strong>
+      <span>66 / 131 kcal consumed, 50% completed</span>
+      <small>Bread (1 slice, 74 kcal); Quail egg (4 quail_egg, 57 kcal)</small>
+    </li>
+    <li>
+      <strong>Dinner</strong>
+      <span>68 / 171 kcal consumed, 40% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Chicken liver (1 item, 60 kcal); Mushroom (cooked) (30 g, 8 kcal)</small>
+    </li>
+    <li>
+      <strong>Lunch</strong>
+      <span>300 / 300 kcal consumed, 100% completed</span>
+      <small>Lunch, afternoon tea at childcare (1 item, 300 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day warn">
+      <div class="day-head">
+        <div><h2>Sat, 20 June 2026</h2><p>2026-06-20</p></div>
+        <span class="pill">1 required missing</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Afternoon tea</div>
+      
+      <ul>
+    <li>
+      <strong>Bedtime milk/yoghurt</strong>
+      <span>120 / 120 kcal consumed, 100% completed</span>
+      <small>PediaSure milk (120 ml, 120 kcal)</small>
+    </li>
+    <li>
+      <strong>Breakfast</strong>
+      <span>80 / 199 kcal consumed, 40% completed</span>
+      <small>Oat (1 item, 60 kcal); PediaSure milk (100 ml, 100 kcal); Strawberry (2 strawberry, 8 kcal); Peanut butter (1 tsp, 31 kcal)</small>
+    </li>
+    <li>
+      <strong>Dessert after lunch</strong>
+      <span>80 / 80 kcal consumed, 100% completed</span>
+      <small>Pediasure milk (1 item, 80 kcal)</small>
+    </li>
+    <li>
+      <strong>Dinner</strong>
+      <span>37 / 245 kcal consumed, 15% completed</span>
+      <small>Pediasure milk (1 item, 80 kcal); Jasmine rice (cooked) (8 tbsp, 103 kcal); Chicken drumstick (25 g, 43 kcal); Vegetables (30 g, 11 kcal); Mushroom (cooked) (30 g, 8 kcal)</small>
+    </li>
+    <li>
+      <strong>Lunch</strong>
+      <span>62 / 206 kcal consumed, 30% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Beans / lentils (30 g, 35 kcal); Quail egg (4 quail_egg, 57 kcal); Carrot (cooked) (30 g, 11 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day warn">
+      <div class="day-head">
+        <div><h2>Sun, 21 June 2026</h2><p>2026-06-21</p></div>
+        <span class="pill">1 required missing</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Afternoon tea</div>
+      
+      <ul>
+    <li>
+      <strong>Bedtime milk/yoghurt</strong>
+      <span>80 / 80 kcal consumed, 100% completed</span>
+      <small>PediaSure milk (80 ml, 80 kcal)</small>
+    </li>
+    <li>
+      <strong>Breakfast</strong>
+      <span>96 / 192 kcal consumed, 50% completed</span>
+      <small>Oat (1 item, 50 kcal); Butter (1 tsp, 34 kcal); PediaSure milk (100 ml, 100 kcal); Strawberry (2 strawberry, 8 kcal)</small>
+    </li>
+    <li>
+      <strong>Dessert after lunch</strong>
+      <span>80 / 80 kcal consumed, 100% completed</span>
+      <small>Pediasure milk (1 item, 80 kcal)</small>
+    </li>
+    <li>
+      <strong>Dinner</strong>
+      <span>87 / 174 kcal consumed, 50% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Quails (1 item, 60 kcal); Broccoli (cooked) (30 g, 11 kcal)</small>
+    </li>
+    <li>
+      <strong>Lunch</strong>
+      <span>51 / 171 kcal consumed, 30% completed</span>
+      <small>Quail egg (4 quail_egg, 57 kcal); Carrot (cooked) (30 g, 11 kcal); Jasmine rice (cooked) (8 tbsp, 103 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day warn">
+      <div class="day-head">
+        <div><h2>Mon, 22 June 2026</h2><p>2026-06-22</p></div>
+        <span class="pill">1 required missing</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Afternoon tea</div>
+      
+      <ul>
+    <li>
+      <strong>Bedtime milk/yoghurt</strong>
+      <span>60 / 120 kcal consumed, 50% completed</span>
+      <small>PediaSure milk (120 ml, 120 kcal)</small>
+    </li>
+    <li>
+      <strong>Breakfast</strong>
+      <span>189 / 222 kcal consumed, 85% completed</span>
+      <small>Oat (1 item, 60 kcal); PediaSure milk (120 ml, 120 kcal); Butter (1 tsp, 34 kcal); Strawberry (2 strawberry, 8 kcal)</small>
+    </li>
+    <li>
+      <strong>Dinner</strong>
+      <span>56 / 187 kcal consumed, 30% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Pork (20 g, 48 kcal); Prawn (25 g, 25 kcal); Vegetables (30 g, 11 kcal)</small>
+    </li>
+    <li>
+      <strong>Lunch</strong>
+      <span>300 / 300 kcal consumed, 100% completed</span>
+      <small>Lunch, afternoon tea at chilcare (1 item, 300 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day warn">
+      <div class="day-head">
+        <div><h2>Tue, 23 June 2026</h2><p>2026-06-23</p></div>
+        <span class="pill">1 required missing</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Afternoon tea</div>
+      
+      <ul>
+    <li>
+      <strong>Bedtime milk/yoghurt</strong>
+      <span>80 / 80 kcal consumed, 100% completed</span>
+      <small>PediaSure milk (80 ml, 80 kcal)</small>
+    </li>
+    <li>
+      <strong>Breakfast</strong>
+      <span>73 / 146 kcal consumed, 50% completed</span>
+      <small>Bread (1 slice, 74 kcal); Egg (1 egg, 72 kcal)</small>
+    </li>
+    <li>
+      <strong>Dessert after lunch</strong>
+      <span>89 / 178 kcal consumed, 50% completed</span>
+      <small>Oat (1 item, 50 kcal); Strawberry (2 strawberry, 8 kcal); Pediasure milk (1 item, 120 kcal)</small>
+    </li>
+    <li>
+      <strong>Dinner</strong>
+      <span>155 / 194 kcal consumed, 80% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Quails (1 item, 80 kcal); Vegetables (30 g, 11 kcal)</small>
+    </li>
+    <li>
+      <strong>Lunch</strong>
+      <span>49 / 164 kcal consumed, 30% completed</span>
+      <small>Oat (1 item, 50 kcal); Egg (1 egg, 72 kcal); Butter (1 tsp, 34 kcal); Strawberry (2 strawberry, 8 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day warn">
+      <div class="day-head">
+        <div><h2>Wed, 24 June 2026</h2><p>2026-06-24</p></div>
+        <span class="pill">1 required missing</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Afternoon tea</div>
+      
+      <ul>
+    <li>
+      <strong>Bedtime milk/yoghurt</strong>
+      <span>80 / 80 kcal consumed, 100% completed</span>
+      <small>PediaSure milk (80 ml, 80 kcal)</small>
+    </li>
+    <li>
+      <strong>Breakfast</strong>
+      <span>120 / 171 kcal consumed, 70% completed</span>
+      <small>Jasmine rice (cooked) (4 tbsp, 51 kcal); Egg (1 egg, 72 kcal); Avocado (2 slice, 48 kcal)</small>
+    </li>
+    <li>
+      <strong>Dinner</strong>
+      <span>228 / 285 kcal consumed, 80% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Quails (1 item, 80 kcal); Vegetables (30 g, 11 kcal); Dried plum / prune (4 prune, 91 kcal)</small>
+    </li>
+    <li>
+      <strong>Lunch</strong>
+      <span>151 / 215 kcal consumed, 70% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Chicken thigh (25 g, 52 kcal); Pork and vege soup (100 g, 60 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day warn">
+      <div class="day-head">
+        <div><h2>Thu, 25 June 2026</h2><p>2026-06-25</p></div>
+        <span class="pill">1 required missing</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Afternoon tea</div>
+      
+      <ul>
+    <li>
+      <strong>Bedtime milk/yoghurt</strong>
+      <span>80 / 80 kcal consumed, 100% completed</span>
+      <small>PediaSure milk (80 ml, 80 kcal)</small>
+    </li>
+    <li>
+      <strong>Breakfast</strong>
+      <span>199 / 199 kcal consumed, 100% completed</span>
+      <small>Bread (1 slice, 74 kcal); Quail egg (4 quail_egg, 57 kcal); Dried plum / prune (3 prune, 68 kcal)</small>
+    </li>
+    <li>
+      <strong>Dinner</strong>
+      <span>187 / 187 kcal consumed, 100% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Pork (30 g, 73 kcal); Vegetables (30 g, 11 kcal)</small>
+    </li>
+    <li>
+      <strong>Lunch</strong>
+      <span>104 / 174 kcal consumed, 60% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Crabs (1 item, 60 kcal); Vegetables (30 g, 11 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day warn">
+      <div class="day-head">
+        <div><h2>Fri, 26 June 2026</h2><p>2026-06-26</p></div>
+        <span class="pill">2 required missing</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Afternoon tea, Dinner</div>
+      
+      <ul>
+    <li>
+      <strong>Breakfast</strong>
+      <span>130 / 217 kcal consumed, 60% completed</span>
+      <small>Bread (1 slice, 74 kcal); Egg (1 egg, 72 kcal); Cheese (15 g, 60 kcal); Vegetables (30 g, 11 kcal)</small>
+    </li>
+    <li>
+      <strong>Lunch</strong>
+      <span>201 / 287 kcal consumed, 70% completed</span>
+      <small>Bread (2 slice, 148 kcal); Pork (20 g, 48 kcal); Vegetables (30 g, 11 kcal); PediaSure milk (80 ml, 80 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day warn">
+      <div class="day-head">
+        <div><h2>Sat, 27 June 2026</h2><p>2026-06-27</p></div>
+        <span class="pill">3 required missing</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Breakfast, Lunch, Afternoon tea</div>
+      
+      <ul>
+    <li>
+      <strong>Dinner</strong>
+      <span>162 / 162 kcal consumed, 100% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Pork (20 g, 48 kcal); Vegetables (30 g, 11 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day warn">
+      <div class="day-head">
+        <div><h2>Sun, 28 June 2026</h2><p>2026-06-28</p></div>
+        <span class="pill">3 required missing</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Breakfast, Lunch, Afternoon tea</div>
+      
+      <ul>
+    <li>
+      <strong>Dinner</strong>
+      <span>123 / 176 kcal consumed, 70% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Pork (20 g, 48 kcal); Grape (4 quartered_grape, 14 kcal); Vegetables (30 g, 11 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day warn">
+      <div class="day-head">
+        <div><h2>Mon, 29 June 2026</h2><p>2026-06-29</p></div>
+        <span class="pill">1 required missing</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Afternoon tea</div>
+      
+      <ul>
+    <li>
+      <strong>Bedtime milk/yoghurt</strong>
+      <span>80 / 80 kcal consumed, 100% completed</span>
+      <small>PediaSure milk (80 ml, 80 kcal)</small>
+    </li>
+    <li>
+      <strong>Breakfast</strong>
+      <span>160 / 160 kcal consumed, 100% completed</span>
+      <small>Oat milk butter berries (1 item, 160 kcal)</small>
+    </li>
+    <li>
+      <strong>Dinner</strong>
+      <span>162 / 162 kcal consumed, 100% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Pork (20 g, 48 kcal); Vegetables (30 g, 11 kcal)</small>
+    </li>
+    <li>
+      <strong>Lunch</strong>
+      <span>300 / 300 kcal consumed, 100% completed</span>
+      <small>Lunch and tea at chilcare (1 item, 300 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day warn">
+      <div class="day-head">
+        <div><h2>Tue, 30 June 2026</h2><p>2026-06-30</p></div>
+        <span class="pill">1 required missing</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Afternoon tea</div>
+      
+      <ul>
+    <li>
+      <strong>Bedtime milk/yoghurt</strong>
+      <span>80 / 80 kcal consumed, 100% completed</span>
+      <small>PediaSure milk (80 ml, 80 kcal)</small>
+    </li>
+    <li>
+      <strong>Breakfast</strong>
+      <span>160 / 160 kcal consumed, 100% completed</span>
+      <small>Oat milk butter bluberries (1 item, 160 kcal)</small>
+    </li>
+    <li>
+      <strong>Dinner</strong>
+      <span>162 / 162 kcal consumed, 100% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Pork (20 g, 48 kcal); Vegetables (30 g, 11 kcal)</small>
+    </li>
+    <li>
+      <strong>Lunch</strong>
+      <span>207 / 207 kcal consumed, 100% completed</span>
+      <small>Bread (1 slice, 74 kcal); Egg (1 egg, 72 kcal); Crab (1 item, 50 kcal); Vegetables (30 g, 11 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day warn">
+      <div class="day-head">
+        <div><h2>Wed, 01 July 2026</h2><p>2026-07-01</p></div>
+        <span class="pill">1 required missing</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Afternoon tea</div>
+      
+      <ul>
+    <li>
+      <strong>Bedtime milk/yoghurt</strong>
+      <span>40 / 80 kcal consumed, 50% completed</span>
+      <small>PediaSure milk (80 ml, 80 kcal)</small>
+    </li>
+    <li>
+      <strong>Breakfast</strong>
+      <span>156 / 156 kcal consumed, 100% completed</span>
+      <small>Bread (1 slice, 74 kcal); Quail egg (4 quail_egg, 57 kcal); Plum (3 slice, 14 kcal); Vegetables (30 g, 11 kcal)</small>
+    </li>
+    <li>
+      <strong>Dinner</strong>
+      <span>126 / 157 kcal consumed, 80% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Chicken drumstick (25 g, 43 kcal); Broccoli (cooked) (30 g, 11 kcal)</small>
+    </li>
+    <li>
+      <strong>Lunch</strong>
+      <span>138 / 173 kcal consumed, 80% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Prawn (25 g, 25 kcal); Butter (1 tsp, 34 kcal); Vegetables (30 g, 11 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day warn">
+      <div class="day-head">
+        <div><h2>Thu, 02 July 2026</h2><p>2026-07-02</p></div>
+        <span class="pill">2 required missing</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Afternoon tea, Dinner</div>
+      
+      <ul>
+    <li>
+      <strong>Breakfast</strong>
+      <span>193 / 241 kcal consumed, 80% completed</span>
+      <small>Bread (1 slice, 74 kcal); Egg (1 egg, 72 kcal); Cheese (15 g, 60 kcal); Banana (0.33 banana, 35 kcal)</small>
+    </li>
+    <li>
+      <strong>Lunch</strong>
+      <span>149 / 198 kcal consumed, 75% completed</span>
+      <small>Jasmine rice (cooked) (8 tbsp, 103 kcal); Crab (1 item, 60 kcal); Beans / lentils (30 g, 35 kcal)</small>
+    </li></ul>
+    </section>
+
+    <section class="day empty">
+      <div class="day-head">
+        <div><h2>Fri, 03 July 2026</h2><p>2026-07-03</p></div>
+        <span class="pill">No meals saved</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Breakfast, Lunch, Afternoon tea, Dinner</div>
+      
+      <ul><li><strong>No saved meal records</strong><span>Breakfast, Lunch, Afternoon tea, and Dinner are all missing.</span></li></ul>
+    </section>
+
+    <section class="day empty">
+      <div class="day-head">
+        <div><h2>Sat, 04 July 2026</h2><p>2026-07-04</p></div>
+        <span class="pill">No meals saved</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Breakfast, Lunch, Afternoon tea, Dinner</div>
+      
+      <ul><li><strong>No saved meal records</strong><span>Breakfast, Lunch, Afternoon tea, and Dinner are all missing.</span></li></ul>
+    </section>
+
+    <section class="day empty">
+      <div class="day-head">
+        <div><h2>Sun, 05 July 2026</h2><p>2026-07-05</p></div>
+        <span class="pill">No meals saved</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Breakfast, Lunch, Afternoon tea, Dinner</div>
+      
+      <ul><li><strong>No saved meal records</strong><span>Breakfast, Lunch, Afternoon tea, and Dinner are all missing.</span></li></ul>
+    </section>
+
+    <section class="day empty">
+      <div class="day-head">
+        <div><h2>Mon, 06 July 2026</h2><p>2026-07-06</p></div>
+        <span class="pill">No meals saved</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Breakfast, Lunch, Afternoon tea, Dinner</div>
+      
+      <ul><li><strong>No saved meal records</strong><span>Breakfast, Lunch, Afternoon tea, and Dinner are all missing.</span></li></ul>
+    </section>
+
+    <section class="day empty">
+      <div class="day-head">
+        <div><h2>Tue, 07 July 2026</h2><p>2026-07-07</p></div>
+        <span class="pill">No meals saved</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Breakfast, Lunch, Afternoon tea, Dinner</div>
+      
+      <ul><li><strong>No saved meal records</strong><span>Breakfast, Lunch, Afternoon tea, and Dinner are all missing.</span></li></ul>
+    </section>
+
+    <section class="day empty">
+      <div class="day-head">
+        <div><h2>Wed, 08 July 2026</h2><p>2026-07-08</p></div>
+        <span class="pill">No meals saved</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Breakfast, Lunch, Afternoon tea, Dinner</div>
+      
+      <ul><li><strong>No saved meal records</strong><span>Breakfast, Lunch, Afternoon tea, and Dinner are all missing.</span></li></ul>
+    </section>
+
+    <section class="day empty">
+      <div class="day-head">
+        <div><h2>Thu, 09 July 2026</h2><p>2026-07-09</p></div>
+        <span class="pill">No meals saved</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Breakfast, Lunch, Afternoon tea, Dinner</div>
+      
+      <ul><li><strong>No saved meal records</strong><span>Breakfast, Lunch, Afternoon tea, and Dinner are all missing.</span></li></ul>
+    </section>
+
+    <section class="day empty">
+      <div class="day-head">
+        <div><h2>Fri, 10 July 2026</h2><p>2026-07-10</p></div>
+        <span class="pill">No meals saved</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Breakfast, Lunch, Afternoon tea, Dinner</div>
+      
+      <ul><li><strong>No saved meal records</strong><span>Breakfast, Lunch, Afternoon tea, and Dinner are all missing.</span></li></ul>
+    </section>
+
+    <section class="day empty">
+      <div class="day-head">
+        <div><h2>Sat, 11 July 2026</h2><p>2026-07-11</p></div>
+        <span class="pill">No meals saved</span>
+      </div>
+      <div class="missing"><strong>Missing required meals:</strong> Breakfast, Lunch, Afternoon tea, Dinner</div>
+      
+      <ul><li><strong>No saved meal records</strong><span>Breakfast, Lunch, Afternoon tea, and Dinner are all missing.</span></li></ul>
+    </section>
+  </main>
+  <footer>Generated locally for Alvin from Dưa Béo meal records.</footer>
+</body>
+</html>
