@@ -57,11 +57,13 @@ app/layout.tsx
 app/globals.css
 app/report/page.tsx
 app/api/generate-meal/route.ts
+app/api/parse-meal/route.ts
 app/api/review-meal/route.ts
 app/api/transcribe/route.ts
 app/api/meal-records/route.ts
 app/api/usage/route.ts
 components/MealPlannerForm.tsx
+components/MealAssistant.tsx
 components/IngredientChips.tsx
 components/MealQuantityGrid.tsx
 components/MealReviewPanel.tsx
@@ -321,6 +323,18 @@ This fixed the Full-fat yoghurt quantity/report issue.
 ### Next Generated Types
 
 `npm run build` can change `next-env.d.ts` between `.next/dev/types/routes.d.ts` and `.next/types/routes.d.ts`. Treat this as generated noise unless the project intentionally updates it.
+
+### AI Meal Entry (parse-meal)
+
+The prompt bar is an AI assistant (`components/MealAssistant.tsx` + `/api/parse-meal`), not keyword matching. The parent speaks or types a whole meal description ("this morning she had one egg, 8 tbsp rice, half a banana, ate 80%") and the AI fills meal type, foods with amounts/units, record date, and completion percent. Key behaviors:
+
+- The API gets the full ingredient catalog (keys, aliases, unit ids, defaults) in the system prompt and must return only valid keys/units; the route repairs invalid ones to defaults.
+- Supports English and Vietnamese descriptions.
+- If a food is ambiguous (plain "soup" vs beef/chicken/pork vege soup, Vietnamese "bo"), the AI asks ONE short clarifying question shown as a bubble above the prompt bar; the answer can be voice or text. Conversation history is kept client-side and replayed to the API.
+- Unknown foods become custom items with estimated toddler-portion calories instead of triggering questions.
+- If the description includes completion or a date, the save dialog auto-opens pre-filled so one tap saves the record.
+- When the AI is unavailable (no key, over budget, error) the old client-side keyword matching (`applyFreeText` in `MealPlannerForm.tsx`) is used as fallback.
+- Usage/cost is tracked through the same `usageStore` budget as review-meal.
 
 ### Voice Input
 

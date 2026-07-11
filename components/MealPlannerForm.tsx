@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { BabyMascot } from "@/components/BabyMascot";
 import { CuteButton } from "@/components/CuteButton";
@@ -9,7 +9,7 @@ import { MealQuantityGrid } from "@/components/MealQuantityGrid";
 import { MealReviewPanel } from "@/components/MealReviewPanel";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { SuggestedMeals } from "@/components/SuggestedMeals";
-import { VoiceRecorder, type VoiceRecorderStatus } from "@/components/VoiceRecorder";
+import { MealAssistant, type ParsedMealResult } from "@/components/MealAssistant";
 import {
   createCustomMealBuilderItem,
   createMealBuilderItem,
@@ -22,6 +22,7 @@ import {
   rebalanceSuggestedItems,
   suggestMeals,
   summarizeMeal,
+  updateMealBuilderItem,
 } from "@/lib/nutrition";
 import type { ChildProfile, PlanningMode } from "@/types/meal";
 import type { MealBuilderItem, MealReview } from "@/types/nutrition";
@@ -165,8 +166,6 @@ export function MealPlannerForm() {
   const [customFoodOpen, setCustomFoodOpen] = useState(false);
   const [customFoodName, setCustomFoodName] = useState("");
   const [customFoodCalories, setCustomFoodCalories] = useState("60");
-  const [promptNotice, setPromptNotice] = useState("");
-  const [voiceStatus, setVoiceStatus] = useState<VoiceRecorderStatus>({ state: "idle", message: "" });
   const [tipsOpen, setTipsOpen] = useState(false);
   const [targetsOpen, setTargetsOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
@@ -221,12 +220,6 @@ export function MealPlannerForm() {
     const timer = window.setTimeout(() => setSaveToastOpen(false), 2600);
     return () => window.clearTimeout(timer);
   }, [saveToastOpen]);
-
-  useEffect(() => {
-    if (!promptNotice) return;
-    const timer = window.setTimeout(() => setPromptNotice(""), 2600);
-    return () => window.clearTimeout(timer);
-  }, [promptNotice]);
 
   useEffect(() => {
     function updateBackToTopVisibility() {
@@ -340,10 +333,6 @@ export function MealPlannerForm() {
     }
   }
 
-  function addTranscript(text: string) {
-    setFreeText((current) => [current, text].filter(Boolean).join(" ").trim());
-  }
-
   function updateSelectedIngredients(nextSelected: string[], targetMealType = mealType) {
     const allowedSelected = nextSelected.filter((selected) => isIngredientAllowedForMeal(selected, targetMealType));
     setSelectedIngredients(allowedSelected);
@@ -378,16 +367,41 @@ export function MealPlannerForm() {
     return Boolean(inferredMeal || textIngredients.length);
   }
 
-  function submitPrompt(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const applied = applyFreeText();
-    if (!applied) {
-      setPromptNotice(freeText.trim() ? "No matching food found yet. Try rice, egg, yoghurt, banana, or lunch." : "Type or say foods to add them.");
-      return;
+  function applyParsedMeal(parsed: ParsedMealResult) {
+    const nextMealType = parsed.mealType && visibleMealTypes.includes(parsed.mealType) ? parsed.mealType : mealType;
+    const nextItems: MealBuilderItem[] = [];
+    const chipNames: string[] = [];
+    for (const entry of parsed.items ?? []) {
+      if (entry.ingredientKey) {
+        const base = createMealBuilderItem(entry.ingredientKey);
+        if (base) {
+          const amount = typeof entry.amount === "number" && entry.amount > 0 ? entry.amount : base.amount;
+          nextItems.push(updateMealBuilderItem(base, amount, entry.unit || base.unit));
+          chipNames.push(base.name);
+          continue;
+        }
+      }
+      if (entry.customName && typeof entry.customCalories === "number") {
+        const custom = createCustomMealBuilderItem(entry.customName, entry.customCalories);
+        if (custom) nextItems.push(custom);
+      }
     }
 
-    setFreeText("");
-    setPromptNotice("Added to planner.");
+    setMealType(nextMealType);
+    setReview(null);
+    setSelectedMealId(null);
+    if (nextItems.length) {
+      setSelectedIngredients(chipNames.filter((name) => isIngredientAllowedForMeal(name, nextMealType)));
+      setMealItems(rebalanceSuggestedItems(nextItems, nextMealType));
+    }
+    if (typeof parsed.completionPercent === "number") setCompletionPercent(parsed.completionPercent);
+    if (parsed.date) setRecordDate(parsed.date);
+    else if (typeof parsed.completionPercent === "number") setRecordDate(localDateString());
+    if (nextItems.length && (typeof parsed.completionPercent === "number" || parsed.date)) {
+      setSaveError("");
+      setDuplicateRecord(null);
+      setSaveOpen(true);
+    }
   }
 
   function addCustomFoodFromHome() {
@@ -601,53 +615,15 @@ export function MealPlannerForm() {
       </section>
 
       <section className="mx-auto mt-5 w-full max-w-3xl">
-        <form onSubmit={submitPrompt} className="chat-prompt-shell" aria-label="Add foods with text or voice">
-          <div
-            className={`chat-prompt-box ${
-              voiceStatus.state === "listening" ? "chat-prompt-box-listening" : voiceStatus.state === "completed" ? "chat-prompt-box-complete" : ""
-            }`}
-          >
-            <input
-              type="text"
-              value={freeText}
-              onChange={(event) => {
-                setFreeText(event.currentTarget.value);
-                setPromptNotice("");
-              }}
-              placeholder="Tell me foods or a meal: eggs, rice, banana for breakfast"
-              aria-label="Foods or meal request"
-              className="chat-prompt-input"
-            />
-            <div className="chat-prompt-actions">
-              <VoiceRecorder onTranscript={addTranscript} onStatusChange={setVoiceStatus} disabled={loading} variant="prompt" />
-              <button type="submit" aria-label="Add to planner" title="Add to planner" disabled={!freeText.trim()} className="chat-send-button pressable">
-                <SendIcon />
-              </button>
-            </div>
-          </div>
-          {voiceStatus.message || promptNotice ? (
-            <div
-              className={`chat-prompt-status ${
-                voiceStatus.state === "listening"
-                  ? "chat-prompt-status-listening"
-                  : voiceStatus.state === "completed"
-                    ? "chat-prompt-status-complete"
-                    : voiceStatus.state === "error" || voiceStatus.state === "unavailable"
-                      ? "chat-prompt-status-error"
-                      : ""
-              }`}
-            >
-              {voiceStatus.state === "listening" ? (
-                <span className="voice-status-dot" aria-hidden="true">
-                  <span />
-                  <span />
-                  <span />
-                </span>
-              ) : null}
-              {voiceStatus.message || promptNotice}
-            </div>
-          ) : null}
-        </form>
+        <MealAssistant
+          mealType={mealType}
+          currentItems={mealItems.map((item) => ({ ingredientKey: item.ingredientKey, name: item.name, amount: item.amount, unit: item.unit }))}
+          disabled={loading}
+          value={freeText}
+          onChangeText={setFreeText}
+          onApply={applyParsedMeal}
+          onFallback={applyFreeText}
+        />
       </section>
 
       <section className="mt-5 grid gap-5 lg:grid-cols-[0.95fr_1.25fr] lg:items-start">
@@ -921,14 +897,5 @@ function Tip({ title, body }: { title: string; body: string }) {
       <p className="font-black text-[#633d55]">{title}</p>
       <p>{body}</p>
     </div>
-  );
-}
-
-function SendIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none">
-      <path d="M12 19V5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-      <path d="m6.5 10.5 5.5-5.5 5.5 5.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }
