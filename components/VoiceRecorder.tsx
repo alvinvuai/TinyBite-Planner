@@ -52,6 +52,23 @@ function getSpeechRecognitionConstructor() {
   return browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition;
 }
 
+function describeMicrophoneError(error: unknown) {
+  if (typeof window !== "undefined" && !window.isSecureContext) {
+    return "Voice needs the secure https version of the app. Please open it from its https link.";
+  }
+  const name = (error as { name?: string } | null)?.name || "";
+  if (name === "NotFoundError" || name === "DevicesNotFoundError" || name === "OverconstrainedError") {
+    return "No microphone was found on this device. Typing works perfectly.";
+  }
+  if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") {
+    return "Microphone is blocked for this site. Please allow the microphone in your browser's site settings, then try again.";
+  }
+  if (name === "NotReadableError" || name === "AbortError") {
+    return "The microphone is busy in another app. Please close it and try again.";
+  }
+  return "Microphone access was not available. Typing works perfectly.";
+}
+
 function isIosDevice() {
   if (typeof navigator === "undefined") return false;
   return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -97,7 +114,14 @@ export function VoiceRecorder({ onTranscript, onStatusChange, disabled = false, 
       // iOS browsers advertise SpeechRecognition but it is unreliable outside Safari; server transcription is dependable.
       const preferRecorder = isIosDevice() && hasRecorder;
       setSupportMode(preferRecorder ? "recorder" : hasSpeechRecognition ? "speech" : hasRecorder ? "recorder" : "none");
-      if (!hasSpeechRecognition && !hasRecorder) publishStatus("unavailable", "Voice input is unavailable in this browser.");
+      if (!hasSpeechRecognition && !hasRecorder) {
+        publishStatus(
+          "unavailable",
+          window.isSecureContext
+            ? "Voice input is unavailable in this browser."
+            : "Voice needs the secure https version of the app. Please open it from its https link.",
+        );
+      }
     });
 
     return () => {
@@ -158,7 +182,7 @@ export function VoiceRecorder({ onTranscript, onStatusChange, disabled = false, 
       publishStatus(
         "error",
         blocked
-          ? "Microphone access was not available. Typing works perfectly."
+          ? "Microphone is blocked for this site. Please allow the microphone in your browser's site settings, then try again."
           : canFallBackToRecorder
             ? "Voice was not heard clearly. Tap the mic to try again."
             : "Voice was not heard clearly. Please try again.",
@@ -212,10 +236,10 @@ export function VoiceRecorder({ onTranscript, onStatusChange, disabled = false, 
       recorder.start();
       setRecording(true);
       publishStatus("listening", "Listening...");
-    } catch {
+    } catch (error) {
       setRecording(false);
       setBusy(false);
-      publishStatus("error", "Microphone access was not available. Typing works perfectly.");
+      publishStatus("error", describeMicrophoneError(error));
     }
   }
 
