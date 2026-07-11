@@ -52,6 +52,11 @@ function getSpeechRecognitionConstructor() {
   return browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition;
 }
 
+function isIosDevice() {
+  if (typeof navigator === "undefined") return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
 function getPreferredAudioMimeType() {
   if (typeof MediaRecorder === "undefined" || !("isTypeSupported" in MediaRecorder)) return "";
   return ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"].find((type) => MediaRecorder.isTypeSupported(type)) || "";
@@ -89,7 +94,9 @@ export function VoiceRecorder({ onTranscript, onStatusChange, disabled = false, 
     queueMicrotask(() => {
       const hasSpeechRecognition = Boolean(getSpeechRecognitionConstructor());
       const hasRecorder = "MediaRecorder" in window && Boolean(navigator.mediaDevices?.getUserMedia);
-      setSupportMode(hasSpeechRecognition ? "speech" : hasRecorder ? "recorder" : "none");
+      // iOS browsers advertise SpeechRecognition but it is unreliable outside Safari; server transcription is dependable.
+      const preferRecorder = isIosDevice() && hasRecorder;
+      setSupportMode(preferRecorder ? "recorder" : hasSpeechRecognition ? "speech" : hasRecorder ? "recorder" : "none");
       if (!hasSpeechRecognition && !hasRecorder) publishStatus("unavailable", "Voice input is unavailable in this browser.");
     });
 
@@ -146,7 +153,16 @@ export function VoiceRecorder({ onTranscript, onStatusChange, disabled = false, 
       setRecording(false);
       setBusy(false);
       const blocked = event.error === "not-allowed" || event.error === "service-not-allowed";
-      publishStatus("error", blocked ? "Microphone access was not available. Typing works perfectly." : "Voice was not heard clearly. Please try again.");
+      const canFallBackToRecorder = !blocked && "MediaRecorder" in window && Boolean(navigator.mediaDevices?.getUserMedia);
+      if (canFallBackToRecorder) setSupportMode("recorder");
+      publishStatus(
+        "error",
+        blocked
+          ? "Microphone access was not available. Typing works perfectly."
+          : canFallBackToRecorder
+            ? "Voice was not heard clearly. Tap the mic to try again."
+            : "Voice was not heard clearly. Please try again.",
+      );
     };
     recognition.onend = () => {
       speechRef.current = null;
