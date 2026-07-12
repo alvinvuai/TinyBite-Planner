@@ -676,12 +676,6 @@ export function MealPlannerForm() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <CuteButton type="button" variant="secondary" onClick={() => setCustomFoodOpen(true)} className="min-h-10 px-4 py-2">
-              Custom food
-            </CuteButton>
-          </div>
-
           <label className="block space-y-2">
             <span className="text-sm font-black text-[#633d55]">Meal type</span>
             <select
@@ -786,6 +780,19 @@ export function MealPlannerForm() {
           <p className="mb-4 text-sm font-semibold leading-6 text-[#765066]">
             Tap a food to add or remove it from this meal. Your selected foods and actual calories update immediately.
           </p>
+          <div className="mb-4 flex justify-end">
+            <CuteButton
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setFoodListOpen(false);
+                setCustomFoodOpen(true);
+              }}
+              className="min-h-10 px-4 py-2"
+            >
+              Custom food
+            </CuteButton>
+          </div>
           <IngredientChips mealType={mealType} selected={selectedIngredients} onChange={updateSelectedIngredients} />
         </Modal>
       ) : null}
