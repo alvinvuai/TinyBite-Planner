@@ -15,7 +15,6 @@ import {
   createMealBuilderItem,
   getAllowedIngredientDefinitions,
   isIngredientAllowedForMeal,
-  mealSchedules,
   mealTargets,
   mealTypes,
   normalizeIngredient,
@@ -77,6 +76,7 @@ type SavedMealRecordResponse = {
     id: string;
     totalConsumedCalories: number;
   };
+  merged?: boolean;
   existingRecord?: {
     id: string;
     date: string;
@@ -164,6 +164,7 @@ export function MealPlannerForm() {
   const [profile, setProfile] = useState<ChildProfile>(defaultProfile);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [customFoodOpen, setCustomFoodOpen] = useState(false);
+  const [foodListOpen, setFoodListOpen] = useState(false);
   const [customFoodName, setCustomFoodName] = useState("");
   const [customFoodCalories, setCustomFoodCalories] = useState("60");
   const [tipsOpen, setTipsOpen] = useState(false);
@@ -254,7 +255,6 @@ export function MealPlannerForm() {
 
   const suggestedMeals = suggestMeals(mealItems, mealType);
   const summary = useMemo(() => summarizeMeal(mealItems, mealType), [mealItems, mealType]);
-  const selectedSchedule = mealSchedules[mealType];
   const canReview = mealItems.length > 0;
 
   function changeMealType(nextMealType: string) {
@@ -505,7 +505,11 @@ export function MealPlannerForm() {
       }
       setSaveOpen(false);
       setSaveToastOpen(true);
-      setSavedMessage(`Saved ${mealType}: about ${data.record.totalConsumedCalories} kcal consumed. View it in Report.`);
+      setSavedMessage(
+        data.merged
+          ? `Merged this ${mealType.toLowerCase()} into the ${recordDate} record: about ${data.record.totalConsumedCalories} kcal consumed. View it in Report.`
+          : `Saved ${mealType}: about ${data.record.totalConsumedCalories} kcal consumed. View it in Report.`,
+      );
     } catch (caught) {
       setSaveError(caught instanceof Error ? caught.message : "Could not save meal record.");
     } finally {
@@ -612,6 +616,10 @@ export function MealPlannerForm() {
         <p className="mx-auto mt-2 max-w-sm text-base font-semibold leading-6 text-[#765066]">
           Cute meal ideas with toddler-sized portions
         </p>
+        <div className="mx-auto mt-4 inline-flex items-center gap-3 rounded-full border border-[#edc2d4] bg-[#fffafd] px-5 py-3 shadow-[0_12px_28px_rgba(126,70,101,0.12)]">
+          <span className="text-xs font-black uppercase tracking-[0.1em] text-[#9c456c]">Actual calories</span>
+          <span className="text-xl font-black text-[#633d55]">{Math.round(summary.totalCalories)} kcal</span>
+        </div>
       </section>
 
       <section className="mx-auto mt-5 w-full max-w-3xl">
@@ -689,19 +697,18 @@ export function MealPlannerForm() {
             </select>
           </label>
 
-          {selectedSchedule ? (
-            <div className="rounded-[8px] border border-[#f0cddd] bg-[#fff8fb]/90 p-3 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#9c456c]">Suggested time</p>
-                <p className="rounded-full bg-[#fff0d7] px-3 py-1 text-xs font-black text-[#7a4a20]">{selectedSchedule.timeFrame}</p>
+          <div className="rounded-[8px] border border-[#efd6e2] bg-white/62 p-3 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-black text-[#633d55]">Food list</p>
+                <p className="mt-1 text-xs font-semibold leading-5 text-[#8a6679]">
+                  AI can fill the meal from your description. Open this list when you want to add foods manually.
+                </p>
               </div>
-              <p className="mt-2 text-sm font-semibold leading-5 text-[#765066]">{selectedSchedule.note}</p>
+              <CuteButton type="button" variant="secondary" onClick={() => setFoodListOpen(true)} className="min-h-10 flex-none px-3 py-2 text-xs sm:px-4 sm:text-sm">
+                Available foods
+              </CuteButton>
             </div>
-          ) : null}
-
-          <div className="space-y-2">
-            <p className="text-sm font-black text-[#633d55]">Available foods</p>
-            <IngredientChips mealType={mealType} selected={selectedIngredients} onChange={updateSelectedIngredients} />
           </div>
         </div>
 
@@ -771,6 +778,15 @@ export function MealPlannerForm() {
               Add to meal
             </CuteButton>
           </div>
+        </Modal>
+      ) : null}
+
+      {foodListOpen ? (
+        <Modal title={`Available foods for ${mealType}`} onClose={() => setFoodListOpen(false)}>
+          <p className="mb-4 text-sm font-semibold leading-6 text-[#765066]">
+            Tap a food to add or remove it from this meal. Your selected foods and actual calories update immediately.
+          </p>
+          <IngredientChips mealType={mealType} selected={selectedIngredients} onChange={updateSelectedIngredients} />
         </Modal>
       ) : null}
 
@@ -852,14 +868,12 @@ export function MealPlannerForm() {
           <div className="grid gap-2">
             {visibleMealTypes.map((type) => {
               const target = mealTargets[type];
-              const schedule = mealSchedules[type];
               return (
                 <div key={type} className="rounded-[8px] bg-white/72 p-3">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-black text-[#633d55]">{type}</p>
                     <p className="rounded-full bg-[#fff0d7] px-3 py-1 text-xs font-black text-[#8a5422]">{target.calories} kcal</p>
                   </div>
-                  {schedule ? <p className="mt-1 text-xs font-black leading-5 text-[#9c456c]">{schedule.timeFrame}</p> : null}
                   <p className="mt-1 text-xs font-semibold leading-5 text-[#8a6679]">
                     Protein {target.protein}g · Carb {target.carbs}g · Fat {target.fat}g
                   </p>

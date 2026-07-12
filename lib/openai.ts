@@ -19,7 +19,7 @@ export function getOpenAiClient() {
 }
 
 export function getMealModel() {
-  return process.env.OPENAI_MEAL_MODEL || "gpt-5.4-mini";
+  return process.env.OPENAI_MEAL_MODEL || "gpt-5.6-luna";
 }
 
 export function getTranscribeModel() {

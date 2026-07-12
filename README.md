@@ -26,7 +26,7 @@ Create `.env.local` from `.env.example`:
 
 ```bash
 OPENAI_API_KEY=your_key
-OPENAI_MEAL_MODEL=gpt-5.4-mini
+OPENAI_MEAL_MODEL=gpt-5.6-luna
 OPENAI_TRANSCRIBE_MODEL=gpt-4o-mini-transcribe
 OPENAI_INPUT_PRICE_PER_1M=
 OPENAI_OUTPUT_PRICE_PER_1M=

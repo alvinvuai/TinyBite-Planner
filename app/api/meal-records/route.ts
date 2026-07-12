@@ -65,9 +65,16 @@ export async function POST(request: Request) {
   const store = getMealRecordStore();
   const records = await store.list();
   const duplicate = findDuplicateMealRecord(records, input.date, input.mealName);
-  if (duplicate) return duplicateMealRecordResponse(duplicate);
-
   const record = buildMealRecord(input);
+  if (duplicate) {
+    const merged = mergeMealRecords(duplicate, record);
+    const saved = await store.update(merged);
+    if (!saved) {
+      return NextResponse.json({ error: "NOT_FOUND", message: "The previous meal record could not be merged. Please try again." }, { status: 404 });
+    }
+    return NextResponse.json({ record: saved, merged: true, message: `Merged this meal into the existing ${saved.mealName} record for ${saved.date}.` });
+  }
+
   const saved = await store.add(record);
   return NextResponse.json({ record: saved }, { status: 201 });
 }
@@ -135,6 +142,20 @@ function buildMealRecord(input: MealRecordInput, id = crypto.randomUUID(), creat
       suggestedCalories: Math.round(ingredient.suggestedCalories),
     })),
     createdAt,
+  };
+}
+
+function mergeMealRecords(existing: MealRecord, incoming: MealRecord): MealRecord {
+  const totalMealCalories = Math.round(existing.totalMealCalories + incoming.totalMealCalories);
+  const totalConsumedCalories = Math.round(existing.totalConsumedCalories + incoming.totalConsumedCalories);
+  const completionPercent = totalMealCalories > 0 ? Math.min(100, Math.round((totalConsumedCalories / totalMealCalories) * 100)) : 0;
+
+  return {
+    ...existing,
+    totalMealCalories,
+    totalConsumedCalories,
+    completionPercent,
+    ingredients: [...existing.ingredients, ...incoming.ingredients],
   };
 }
 
